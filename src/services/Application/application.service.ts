@@ -1,4 +1,4 @@
-import ApplicationModel, { IApplication } from "../models/application.model";
+import ApplicationModel, { IApplication } from "../../models/Application/application.model";
 import { Types, SortOrder } from "mongoose";
 
 export const createApplicationService = async (

@@ -1,4 +1,4 @@
-import InternModel, { IIntern } from "../models/intern.model";
+import InternModel, { IIntern } from "../../models/Application/intern.model";
 import { Types, SortOrder } from "mongoose";
 
 export const createInternService = async (

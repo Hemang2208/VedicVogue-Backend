@@ -10,9 +10,9 @@ import {
   getRepliedApplicationsService,
   searchApplicationsService,
   getApplicationStatistics,
-} from "../services/application.service";
-import { IApplication } from "../models/application.model";
-import { decrypt, encrypt } from "../configs/crypto";
+} from "../../services/Application/application.service";
+import { IApplication } from "../../models/Application/application.model";
+import { decrypt, encrypt } from "../../configs/crypto";
 
 export const createApplicationController = async (
   req: any,

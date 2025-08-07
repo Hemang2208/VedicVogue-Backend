@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
-import * as ApplicationController from "../controllers/application.controller";
-import { corsMiddleware } from "../middleware/cors.middleware";
+import * as ApplicationController from "../../controllers/Application/application.controller";
+import { corsMiddleware } from "../../middleware/cors.middleware";
 
 const router = Router();
 

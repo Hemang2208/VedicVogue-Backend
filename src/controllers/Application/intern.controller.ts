@@ -6,9 +6,9 @@ import {
   getAllInternsService,
   searchInternsService,
   getInternStatistics,
-} from "../services/intern.services";
-import { IIntern } from "../models/intern.model";
-import { decrypt, encrypt } from "../configs/crypto";
+} from "../../services/Application/intern.services";
+import { IIntern } from "../../models/Application/intern.model";
+import { decrypt, encrypt } from "../../configs/crypto";
 
 export const createInternController = async (
   req: any,
