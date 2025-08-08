@@ -25,6 +25,7 @@
     "mongoose": "^8.17.0",
     "multer": "^2.0.2",
     "node-device-detector": "^2.2.2",
+    "nodemailer": "^7.0.5",
     "ts-node-dev": "^2.0.0"
   },
   "devDependencies": {
@@ -32,6 +33,7 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
     "@types/node": "^24.1.0",
+    "@types/nodemailer": "^6.4.17",
     "nodemon": "^3.1.10",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.2"
