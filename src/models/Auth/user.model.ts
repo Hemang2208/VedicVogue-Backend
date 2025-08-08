@@ -1,21 +1,29 @@
 import mongoose from "mongoose";
 
 interface IUserAccount {
-  username?: string;
-  fullname: string;
   email: string;
   phone: string;
+  password: string;
+  gender?: "male" | "female" | "other";
   profilePictureUrl?: string;
 }
 
 interface IUserSecurity {
-  password: string;
-  gender?: "male" | "female" | "other";
   role?: "user" | "admin" | "captain" | "kitchen";
+  ipAddress?: string;
   tokens: Array<{
     token: string;
     createdAt: Date;
     deviceInfo?: string;
+    device: {
+      type: string;
+      brand: string;
+      model: string;
+      browser: string;
+      os: string;
+      memory: number;
+      cores: number;
+    };
   }>;
 }
 
@@ -29,52 +37,104 @@ interface IUserAddress {
   state: string;
   zipcode: string;
   country: string;
-  coordinates?: {
-    lat?: number;
-    lng?: number;
+  coordinates: {
+    latitude: number;
+    longitude: number;
   };
 }
 
 interface IUserActivity {
   memberSince: Date;
-  favorites: mongoose.Types.ObjectId[];
+  favorites: Array<{
+    kitchens: mongoose.Types.ObjectId;
+    dishes: mongoose.Types.ObjectId[];
+  }>;
   cart: Array<{
     item: mongoose.Types.ObjectId;
     quantity: number;
   }>;
   orders: mongoose.Types.ObjectId[];
+  contacts: mongoose.Types.ObjectId[];
   loyaltyPoints: number;
 }
 
 interface IUserPreferences {
-  mealType?: string;
-  mealSpice?: string;
-  mealRestrictions?: string;
-  mealMessage?: string;
-  notificationsOrder: boolean;
-  notificationsReminders: boolean;
-  notificationsMenu: boolean;
-  notificationsPromotions: boolean;
+  meals: {
+    type: string;
+    spice: string;
+    restrictions: string;
+    message: string;
+  };
+  notifications: {
+    order: boolean;
+    reminders: boolean;
+    menu: boolean;
+    promotions: boolean;
+  };
   paymentMethod: string[];
 }
 
 interface IUserStatus {
-  isBanned: boolean;
-  banReason: string | null;
-  bannedAt: Date | null;
+  ban: {
+    isBanned: boolean;
+    banReason: string | null;
+    bannedAt: Date | null;
+  };
   isVerified: boolean;
   isActive: boolean;
   isDeleted: boolean;
   deletedAt: Date | null;
 }
 
+interface IUserAdditionalInfo {
+  timezone: string;
+  isp: string;
+  org: string;
+  session: {
+    timestamp: number;
+    sessionId: string;
+    referrer: string;
+    currentUrl: string;
+    timeZone: string;
+    timeZoneOffset: number;
+    language: string;
+    languages: string[];
+    visitDuration: number;
+    pageLoadTime: number;
+  };
+  browser: {
+    name: string;
+    version: string;
+    engine: string;
+    engineVersion: string;
+    vendor: string;
+    mobile: boolean;
+    tablet: boolean;
+    desktop: boolean;
+  };
+  headers: {
+    userAgent: string;
+    accept: string;
+    acceptLanguage: string;
+    acceptEncoding: string;
+    secChUa: string;
+    secChUaPlatform: string;
+    secChUaMobile: string;
+    secFetchSite: string;
+    secFetchMode: string;
+    secFetchDest: string;
+  };
+}
+
 export interface IUser extends mongoose.Document {
   userID: string;
+  fullname: string;
   account: IUserAccount;
   security: IUserSecurity;
   addresses: IUserAddress[];
   activity: IUserActivity;
   preferences: IUserPreferences;
+  additionalInfo: IUserAdditionalInfo;
   status: IUserStatus;
   lastLogin: Date;
   lastProfileUpdate: Date;
@@ -92,9 +152,9 @@ function generateUserId() {
   const HH = pad(now.getHours());
   const mm = pad(now.getMinutes());
   const ss = pad(now.getSeconds());
-  const randomNum = Math.floor(Math.random() * 10000)
+  const randomNum = Math.floor(Math.random() * 100000) // 5-digit random number
     .toString()
-    .padStart(4, "0");
+    .padStart(6, "0"); // 6-digit random number
 
   return `USER${YYYY}${MM}${DD}${HH}${mm}${ss}${randomNum}`;
 }
@@ -109,21 +169,14 @@ const UserSchema = new mongoose.Schema(
       lowercase: true,
       default: generateUserId,
     },
+    fullname: {
+      type: String,
+      required: true,
+      trim: true,
+    },
 
     // Account Information
     account: {
-      username: {
-        type: String,
-        required: false,
-        unique: true,
-        trim: true,
-        lowercase: true,
-      },
-      fullname: {
-        type: String,
-        required: true,
-        trim: true,
-      },
       email: {
         type: String,
         required: true,
@@ -138,14 +191,6 @@ const UserSchema = new mongoose.Schema(
         unique: true,
         trim: true,
       },
-      profilePictureUrl: {
-        type: String,
-        required: false,
-      },
-    },
-
-    // Security Details
-    security: {
       password: {
         type: String,
         required: true,
@@ -158,11 +203,26 @@ const UserSchema = new mongoose.Schema(
         enum: ["male", "female", "other"],
         default: "other",
       },
+      profilePictureUrl: {
+        type: String,
+        required: false,
+        default: "",
+      },
+    },
+
+    // Security Details
+    security: {
       role: {
         type: String,
         required: false,
         enum: ["user", "admin", "captain", "kitchen"],
         default: "user",
+      },
+      ipAddress: {
+        type: String,
+        required: false,
+        trim: true,
+        default: "UNKNOWN",
       },
       tokens: [
         {
@@ -178,6 +238,44 @@ const UserSchema = new mongoose.Schema(
           deviceInfo: {
             type: String,
             required: false,
+            default: "",
+          },
+          device: {
+            type: {
+              type: String,
+              required: false,
+              default: "",
+            },
+            brand: {
+              type: String,
+              required: false,
+              default: "",
+            },
+            model: {
+              type: String,
+              required: false,
+              default: "",
+            },
+            browser: {
+              type: String,
+              required: false,
+              default: "",
+            },
+            os: {
+              type: String,
+              required: false,
+              default: "",
+            },
+            memory: {
+              type: Number,
+              required: false,
+              default: 0,
+            },
+            cores: {
+              type: Number,
+              required: false,
+              default: 0,
+            },
           },
         },
       ],
@@ -223,11 +321,13 @@ const UserSchema = new mongoose.Schema(
           required: true,
         },
         coordinates: {
-          lat: {
+          latitude: {
             type: Number,
+            default: 0,
           },
-          lng: {
+          longitude: {
             type: Number,
+            default: 0,
           },
         },
       },
@@ -241,8 +341,16 @@ const UserSchema = new mongoose.Schema(
       },
       favorites: [
         {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "Restaurant",
+          kitchens: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Kitchen",
+          },
+          dishes: [
+            {
+              type: mongoose.Schema.Types.ObjectId,
+              ref: "MenuItem",
+            },
+          ],
         },
       ],
       cart: [
@@ -263,6 +371,12 @@ const UserSchema = new mongoose.Schema(
           ref: "Order",
         },
       ],
+      contacts: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User-Contact",
+        },
+      ],
       loyaltyPoints: {
         type: Number,
         default: 0,
@@ -271,41 +385,45 @@ const UserSchema = new mongoose.Schema(
 
     // Preferences
     preferences: {
-      mealType: {
-        type: String,
-        required: false,
-        default: "none",
+      meals: {
+        type: {
+          type: String,
+          required: false,
+          default: "none",
+        },
+        spice: {
+          type: String,
+          required: false,
+          default: "low",
+        },
+        restrictions: {
+          type: String,
+          required: false,
+          default: "none",
+        },
+        message: {
+          type: String,
+          required: false,
+          default: "",
+        },
       },
-      mealSpice: {
-        type: String,
-        required: false,
-        default: "low",
-      },
-      mealRestrictions: {
-        type: String,
-        required: false,
-        default: "none",
-      },
-      mealMessage: {
-        type: String,
-        required: false,
-        default: "",
-      },
-      notificationsOrder: {
-        type: Boolean,
-        default: false,
-      },
-      notificationsReminders: {
-        type: Boolean,
-        default: false,
-      },
-      notificationsMenu: {
-        type: Boolean,
-        default: false,
-      },
-      notificationsPromotions: {
-        type: Boolean,
-        default: false,
+      notifications: {
+        order: {
+          type: Boolean,
+          default: false,
+        },
+        reminders: {
+          type: Boolean,
+          default: false,
+        },
+        menu: {
+          type: Boolean,
+          default: false,
+        },
+        promotions: {
+          type: Boolean,
+          default: false,
+        },
       },
       paymentMethod: [
         {
@@ -315,19 +433,155 @@ const UserSchema = new mongoose.Schema(
       ],
     },
 
+    additionalInfo: {
+      timezone: {
+        type: String,
+        default: "",
+      },
+      isp: {
+        type: String,
+        default: "",
+      },
+      org: {
+        type: String,
+        default: "",
+      },
+      session: {
+        timestamp: {
+          type: Number,
+          default: 0,
+        },
+        sessionId: {
+          type: String,
+          default: "",
+        },
+        referrer: {
+          type: String,
+          default: "",
+        },
+        currentUrl: {
+          type: String,
+          default: "",
+        },
+        timeZone: {
+          type: String,
+          default: "",
+        },
+        timeZoneOffset: {
+          type: Number,
+          default: 0,
+        },
+        language: {
+          type: String,
+          default: "",
+        },
+        languages: [
+          {
+            type: String,
+          },
+        ],
+        visitDuration: {
+          type: Number,
+          default: 0,
+        },
+        pageLoadTime: {
+          type: Number,
+          default: 0,
+        },
+      },
+      browser: {
+        name: {
+          type: String,
+          default: "",
+        },
+        version: {
+          type: String,
+          default: "",
+        },
+        engine: {
+          type: String,
+          default: "",
+        },
+        engineVersion: {
+          type: String,
+          default: "",
+        },
+        vendor: {
+          type: String,
+          default: "",
+        },
+        mobile: {
+          type: Boolean,
+          default: false,
+        },
+        tablet: {
+          type: Boolean,
+          default: false,
+        },
+        desktop: {
+          type: Boolean,
+          default: false,
+        },
+      },
+      headers: {
+        userAgent: {
+          type: String,
+          default: "",
+        },
+        accept: {
+          type: String,
+          default: "",
+        },
+        acceptLanguage: {
+          type: String,
+          default: "",
+        },
+        acceptEncoding: {
+          type: String,
+          default: "",
+        },
+        secChUa: {
+          type: String,
+          default: "",
+        },
+        secChUaPlatform: {
+          type: String,
+          default: "",
+        },
+        secChUaMobile: {
+          type: String,
+          default: "",
+        },
+        secFetchSite: {
+          type: String,
+          default: "",
+        },
+        secFetchMode: {
+          type: String,
+          default: "",
+        },
+        secFetchDest: {
+          type: String,
+          default: "",
+        },
+      },
+    },
+
     // Status
     status: {
-      isBanned: {
-        type: Boolean,
-        default: false,
-      },
-      banReason: {
-        type: String,
-        default: null,
-      },
-      bannedAt: {
-        type: Date,
-        default: null,
+      ban: {
+        isBanned: {
+          type: Boolean,
+          default: false,
+        },
+        banReason: {
+          type: String,
+          default: "",
+        },
+        bannedAt: {
+          type: Date,
+          default: "",
+        },
       },
       isVerified: {
         type: Boolean,
@@ -366,4 +620,6 @@ const UserSchema = new mongoose.Schema(
   }
 );
 
-export const User = mongoose.model<IUser>("User", UserSchema);
+const UserModel = mongoose.model<IUser>("User", UserSchema);
+
+export default UserModel;
