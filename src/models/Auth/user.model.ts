@@ -138,6 +138,7 @@ export interface IUser extends mongoose.Document {
   additionalInfo: IUserAdditionalInfo;
   status: IUserStatus;
   lastLogin: Date;
+  lastLogout: Date | null;
   lastProfileUpdate: Date;
   lastPasswordChange: Date;
   createdAt: Date;
@@ -590,6 +591,10 @@ const UserSchema = new mongoose.Schema(
     lastLogin: {
       type: Date,
       default: Date.now,
+    },
+    lastLogout: {
+      type: Date,
+      default: null,
     },
     lastProfileUpdate: {
       type: Date,

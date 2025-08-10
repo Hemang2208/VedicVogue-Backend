@@ -449,6 +449,96 @@ export const removeUserTokenController = async (
   }
 };
 
+export const logoutUserController = async (
+  req: any,
+  res: any
+): Promise<void> => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      res.status(401).json({
+        success: false,
+        message: "No valid authorization token provided",
+      });
+      return;
+    }
+
+    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+
+    // Extract user info from token
+    const { verifyAccessToken } = require("../../utils/jwt");
+    let userId: string;
+
+    try {
+      const decoded = verifyAccessToken(token);
+      userId = decoded.userId;
+    } catch (tokenError) {
+      // Even if token is invalid, we should try to logout gracefully
+      res.status(200).json({
+        success: true,
+        message: "Logged out successfully",
+      });
+      return;
+    }
+
+    // Get refresh token from request body (optional)
+    let refreshToken: string | null = null;
+    if (req.body && req.body.data) {
+      try {
+        const decryptedData = decrypt(req.body.data);
+        const parsedData = JSON.parse(decryptedData);
+        refreshToken = parsedData.refreshToken;
+      } catch (decryptError) {
+        console.log(
+          "Could not decrypt refresh token from request body - this is optional for logout"
+        );
+        // If decryption fails, we'll just proceed without the refresh token
+        // The logout will still work, but we won't be able to remove the specific token
+      }
+    }
+
+    // Remove refresh token from user's tokens array if provided
+    if (refreshToken) {
+      try {
+        await removeUserTokenService(userId, refreshToken);
+      } catch (removeError) {
+        console.log("Error removing refresh token during logout:", removeError);
+        // Don't fail the logout if token removal fails
+      }
+    }
+
+    // Update user's last logout time
+    try {
+      const {
+        updateUserLastLogoutService,
+      } = require("../../services/Auth/user.service");
+
+      await updateUserLastLogoutService(userId);
+      console.log(
+        `User logout time updated successfully at ${new Date().toISOString()}`
+      );
+    } catch (userError) {
+      console.log("Error updating user logout info:", userError);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Logged out successfully",
+    });
+  } catch (error: unknown) {
+    console.log("Error during logout:", error);
+    res.status(500).json({
+      success: false,
+      message: "Logout failed",
+      error:
+        process.env.NODE_ENV === "development"
+          ? (error as Error).message
+          : undefined,
+    });
+  }
+};
+
 export const addUserAddressController = async (
   req: any,
   res: any
@@ -1090,32 +1180,32 @@ export const validateTokenController = async (
 ): Promise<void> => {
   try {
     const authHeader = req.headers.authorization;
-    
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
       res.status(401).json({
         success: false,
         valid: false,
-        message: "No valid authorization header"
+        message: "No valid authorization header",
       });
       return;
     }
 
     const token = authHeader.substring(7);
-    
+
     // Import JWT utilities
     const { verifyAccessToken } = require("../../utils/jwt");
-    
+
     try {
       const decoded = verifyAccessToken(token);
-      
+
       // Optionally verify user still exists and is active
       const user = await getUserByIdService(decoded.userId);
-      
+
       if (!user || !user.status.isActive || user.status.isDeleted) {
         res.status(401).json({
           success: false,
           valid: false,
-          message: "User account is inactive"
+          message: "User account is inactive",
         });
         return;
       }
@@ -1124,13 +1214,13 @@ export const validateTokenController = async (
         success: true,
         valid: true,
         userId: decoded.userId,
-        role: decoded.role
+        role: decoded.role,
       });
     } catch (tokenError) {
       res.status(401).json({
         success: false,
         valid: false,
-        message: "Invalid or expired token"
+        message: "Invalid or expired token",
       });
     }
   } catch (error: unknown) {
@@ -1138,7 +1228,7 @@ export const validateTokenController = async (
     res.status(500).json({
       success: false,
       valid: false,
-      message: "Token validation failed"
+      message: "Token validation failed",
     });
   }
 };
@@ -1150,38 +1240,41 @@ export const refreshTokenController = async (
 ): Promise<void> => {
   try {
     const { data } = req.body;
-    
+
     if (!data) {
       res.status(400).json({
         success: false,
-        message: "Refresh token data is required"
+        message: "Refresh token data is required",
       });
       return;
     }
 
     const { refreshToken } = JSON.parse(decrypt(data));
-    
+
     if (!refreshToken) {
       res.status(401).json({
         success: false,
-        message: "Refresh token is required"
+        message: "Refresh token is required",
       });
       return;
     }
 
     // Import JWT utilities
-    const { verifyRefreshToken, generateAccessToken } = require("../../utils/jwt");
-    
+    const {
+      verifyRefreshToken,
+      generateAccessToken,
+    } = require("../../utils/jwt");
+
     try {
       const decoded = verifyRefreshToken(refreshToken);
-      
+
       // Verify user still exists and is active
       const user = await getUserByIdService(decoded.userId);
-      
+
       if (!user || !user.status.isActive || user.status.isDeleted) {
         res.status(401).json({
           success: false,
-          message: "User account is inactive"
+          message: "User account is inactive",
         });
         return;
       }
@@ -1194,7 +1287,7 @@ export const refreshTokenController = async (
       if (!tokenExists) {
         res.status(401).json({
           success: false,
-          message: "Invalid refresh token"
+          message: "Invalid refresh token",
         });
         return;
       }
@@ -1204,7 +1297,7 @@ export const refreshTokenController = async (
         userId: (user as any)._id.toString(),
         userID: user.userID,
         email: user.account.email,
-        role: user.security.role
+        role: user.security.role,
       });
 
       const responseData = { accessToken: newAccessToken };
@@ -1213,19 +1306,19 @@ export const refreshTokenController = async (
       res.status(200).json({
         success: true,
         message: "Access token refreshed successfully",
-        data: encryptedData
+        data: encryptedData,
       });
     } catch (tokenError) {
       res.status(401).json({
         success: false,
-        message: "Invalid or expired refresh token"
+        message: "Invalid or expired refresh token",
       });
     }
   } catch (error: unknown) {
     console.log("Error refreshing token:", error);
     res.status(500).json({
       success: false,
-      message: "Token refresh failed"
+      message: "Token refresh failed",
     });
   }
 };

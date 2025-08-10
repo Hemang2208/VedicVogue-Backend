@@ -11,6 +11,7 @@ import {
   updateUserStatusController,
   addUserTokenController,
   removeUserTokenController,
+  logoutUserController,
   addUserAddressController,
   updateUserAddressController,
   removeUserAddressController,
@@ -30,6 +31,7 @@ import {
   validateTokenController,
   refreshTokenController,
 } from "../../controllers/Auth/user.controller";
+import { authenticateToken } from "../../middleware/auth.middleware";
 
 const router = Router();
 
@@ -45,6 +47,7 @@ router.get("/health", (req: any, res: any) => {
 // User CRUD Operations
 router.post("/create", createUserController);
 router.post("/login", loginUserController);
+router.post("/logout", authenticateToken, logoutUserController);
 router.get("/get/:id", getUserByIdController);
 router.get("/get-by-userid/:userID", getUserByUserIdController);
 router.post("/get-by-email", getUserByEmailController);

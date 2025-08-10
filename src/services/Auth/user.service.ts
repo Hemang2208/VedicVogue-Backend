@@ -134,6 +134,34 @@ export const updateUserPasswordService = async (
   }
 };
 
+export const updateUserLastLogoutService = async (
+  id: string
+): Promise<IUser | null> => {
+  try {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new Error("Invalid user ID");
+    }
+
+    const user = await UserModel.findOneAndUpdate(
+      { _id: id, "status.isDeleted": false },
+      {
+        $set: {
+          lastLogout: new Date(),
+        },
+      },
+      { new: true, runValidators: true }
+    );
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    return user as IUser;
+  } catch (error: any) {
+    throw new Error(`Failed to update user last logout: ${error.message}`);
+  }
+};
+
 export const updateUserStatusService = async (
   id: string,
   updates: {
