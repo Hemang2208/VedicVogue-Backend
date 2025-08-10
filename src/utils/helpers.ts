@@ -1,13 +1,9 @@
-/**
- * Extract IP address from request
- */
 export const getClientIpAddress = (req: any): string => {
   const xForwardedFor = req.headers["x-forwarded-for"] as string;
   const xRealIp = req.headers["x-real-ip"] as string;
   const cfConnectingIp = req.headers["cf-connecting-ip"] as string;
 
   if (xForwardedFor) {
-    // x-forwarded-for can contain multiple IPs, take the first one
     return xForwardedFor.split(",")[0].trim();
   }
 
@@ -22,9 +18,6 @@ export const getClientIpAddress = (req: any): string => {
   return req.socket?.remoteAddress || req.connection?.remoteAddress || "UNKNOWN";
 };
 
-/**
- * Generate unique user ID
- */
 export const generateUserId = (): string => {
   const now = new Date();
   const pad = (n: number) => n.toString().padStart(2, "0");
@@ -41,9 +34,6 @@ export const generateUserId = (): string => {
   return `USER${YYYY}${MM}${DD}${HH}${mm}${ss}${randomNum}`;
 };
 
-/**
- * Sanitize user data for response
- */
 export const sanitizeUserForResponse = (user: any) => {
   const userObj = user.toObject ? user.toObject() : user;
   
@@ -54,25 +44,16 @@ export const sanitizeUserForResponse = (user: any) => {
   return userObj;
 };
 
-/**
- * Validate email format
- */
 export const isValidEmail = (email: string): boolean => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
 };
 
-/**
- * Validate phone number format
- */
 export const isValidPhone = (phone: string): boolean => {
   const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/;
   return phoneRegex.test(phone);
 };
 
-/**
- * Generate random string
- */
 export const generateRandomString = (length: number = 32): string => {
   const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   let result = '';
@@ -82,9 +63,6 @@ export const generateRandomString = (length: number = 32): string => {
   return result;
 };
 
-/**
- * Parse device info from user agent
- */
 export const parseDeviceInfo = (userAgent: string) => {
   // Basic device detection - you might want to use a more sophisticated library
   const isMobile = /Mobile|Android|iPhone|iPad/.test(userAgent);
@@ -117,9 +95,6 @@ export const parseDeviceInfo = (userAgent: string) => {
   };
 };
 
-/**
- * Sleep utility for async operations
- */
 export const sleep = (ms: number): Promise<void> => {
   return new Promise(resolve => setTimeout(resolve, ms));
 };

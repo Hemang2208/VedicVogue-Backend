@@ -16,8 +16,6 @@ export {
   hashPassword,
   comparePassword,
   validatePassword,
-  generateRandomPassword,
-  needsRehash,
 } from "./password";
 
 // Helper Utils
@@ -34,16 +32,12 @@ export {
 
 // User Utils
 export {
-  validateUserCreationData,
-  checkUserExistence,
   prepareUserData,
-  createUserAndGetResponse,
   processUserCreation,
   type CreateUserData,
 } from "./user/userCreation";
 
 export {
-  validateLoginData,
   authenticateUser,
   generateAndStoreTokens,
   processUserLogin,

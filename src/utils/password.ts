@@ -10,11 +10,6 @@ if (!SALT_NUMBER || isNaN(parseInt(SALT_NUMBER))) {
 
 const SALT_ROUNDS = parseInt(SALT_NUMBER);
 
-/**
- * Hash a password using bcrypt
- * @param password - Plain text password
- * @returns Hashed password
- */
 export const hashPassword = async (password: string): Promise<string> => {
   try {
     if (!password || typeof password !== "string") {
@@ -32,12 +27,6 @@ export const hashPassword = async (password: string): Promise<string> => {
   }
 };
 
-/**
- * Compare a plain text password with a hashed password
- * @param password - Plain text password
- * @param hashedPassword - Hashed password from database
- * @returns Boolean indicating if passwords match
- */
 export const comparePassword = async (
   password: string,
   hashedPassword: string
@@ -54,11 +43,6 @@ export const comparePassword = async (
   }
 };
 
-/**
- * Check if password meets security requirements
- * @param password - Plain text password
- * @returns Object with validation result and messages
- */
 export const validatePassword = (
   password: string
 ): {
@@ -101,51 +85,4 @@ export const validatePassword = (
     isValid: errors.length === 0,
     errors,
   };
-};
-
-/**
- * Generate a random password
- * @param length - Length of the password (default: 12)
- * @returns Generated password
- */
-export const generateRandomPassword = (length: number = 12): string => {
-  const lowercase = "abcdefghijklmnopqrstuvwxyz";
-  const uppercase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  const numbers = "0123456789";
-  const symbols = "@$!%*?&";
-  const allChars = lowercase + uppercase + numbers + symbols;
-
-  let password = "";
-
-  // Ensure at least one character from each category
-  password += lowercase[Math.floor(Math.random() * lowercase.length)];
-  password += uppercase[Math.floor(Math.random() * uppercase.length)];
-  password += numbers[Math.floor(Math.random() * numbers.length)];
-  password += symbols[Math.floor(Math.random() * symbols.length)];
-
-  // Fill the rest randomly
-  for (let i = 4; i < length; i++) {
-    password += allChars[Math.floor(Math.random() * allChars.length)];
-  }
-
-  // Shuffle the password
-  return password
-    .split("")
-    .sort(() => Math.random() - 0.5)
-    .join("");
-};
-
-/**
- * Check if a password needs to be rehashed (if salt rounds changed)
- * @param hashedPassword - Current hashed password
- * @returns Boolean indicating if rehashing is needed
- */
-export const needsRehash = (hashedPassword: string): boolean => {
-  try {
-    const rounds = bcrypt.getRounds(hashedPassword);
-    return rounds < SALT_ROUNDS;
-  } catch (error) {
-    // If we can't determine rounds, assume rehashing is needed
-    return true;
-  }
 };

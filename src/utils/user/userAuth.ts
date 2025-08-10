@@ -18,36 +18,6 @@ export interface LoginData {
 }
 
 /**
- * Validate login data
- */
-export const validateLoginData = (
-  data: LoginData
-): {
-  isValid: boolean;
-  errors: string[];
-} => {
-  const errors: string[] = [];
-
-  if (!data.email || data.email.trim().length === 0) {
-    errors.push("Email is required");
-  } else {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(data.email)) {
-      errors.push("Invalid email format");
-    }
-  }
-
-  if (!data.password || data.password.trim().length === 0) {
-    errors.push("Password is required");
-  }
-
-  return {
-    isValid: errors.length === 0,
-    errors,
-  };
-};
-
-/**
  * Authenticate user with email and password
  */
 export const authenticateUser = async (
@@ -116,19 +86,14 @@ export const authenticateUser = async (
   }
 };
 
-/**
- * Generate and store user tokens
- */
 export const generateAndStoreTokens = async (
   user: IUser,
-  req: any,
-  rememberMe: boolean = false
+  req: any
 ): Promise<{
   accessToken: string;
   refreshToken: string;
 }> => {
   try {
-    // Generate tokens
     const tokens = generateTokens({
       userId: (user as any)._id.toString(),
       userID: user.userID,
@@ -136,13 +101,12 @@ export const generateAndStoreTokens = async (
       role: user.security?.role || "user",
     });
 
-    // Get device info
     const ipAddress = getClientIpAddress(req);
     const userAgent = req.headers["user-agent"] || "";
     const deviceInfo = parseDeviceInfo(userAgent);
 
-    // Prepare device details for token storage
     const deviceDetails = {
+      ipAddress: ipAddress,
       type: deviceInfo.type,
       brand: "Unknown",
       model: "Unknown",
@@ -152,7 +116,6 @@ export const generateAndStoreTokens = async (
       cores: 0,
     };
 
-    // Store refresh token in user's tokens array
     await addUserTokenService(
       (user as any)._id.toString(),
       tokens.refreshToken,
@@ -168,9 +131,6 @@ export const generateAndStoreTokens = async (
   }
 };
 
-/**
- * Complete login process
- */
 export const processUserLogin = async (
   data: LoginData,
   req: any
@@ -187,20 +147,6 @@ export const processUserLogin = async (
   };
 }> => {
   try {
-    // Validate login data
-    const validation = validateLoginData(data);
-
-    if (!validation.isValid) {
-      return {
-        success: false,
-        error: {
-          statusCode: 400,
-          message: `Validation failed: ${validation.errors.join(", ")}`,
-        },
-      };
-    }
-
-    // Authenticate user
     const authResult = await authenticateUser(data.email, data.password);
 
     if (!authResult.success || !authResult.user) {
@@ -213,20 +159,17 @@ export const processUserLogin = async (
       };
     }
 
-    // Generate and store tokens
-    const tokens = await generateAndStoreTokens(
-      authResult.user,
-      req,
-      data.rememberMe
-    );
+    const userResponse = authResult.user;
 
-    // Prepare user response (sanitized)
-    const userResponse = sanitizeUserForResponse(authResult.user);
+    const tokens = await generateAndStoreTokens(userResponse, req);
 
     return {
       success: true,
       tokens,
-      user: userResponse,
+      user: {
+        user: userResponse,
+        tokens,
+      },
     };
   } catch (error) {
     return {

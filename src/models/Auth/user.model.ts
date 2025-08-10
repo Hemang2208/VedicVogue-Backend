@@ -9,7 +9,7 @@ export interface IUserAccount {
   profilePictureUrl?: string;
 }
 
-interface IUserSecurity {
+export interface IUserSecurity {
   role?: "user" | "admin" | "captain" | "kitchen";
   ipAddress?: string;
   tokens: Array<{
@@ -17,6 +17,7 @@ interface IUserSecurity {
     createdAt: Date;
     deviceInfo?: string;
     device: {
+      ipAddress?: string;
       type: string;
       brand: string;
       model: string;
@@ -28,7 +29,7 @@ interface IUserSecurity {
   }>;
 }
 
-interface IUserAddress {
+export interface IUserAddress {
   label: string;
   houseNumber: string;
   street: string;
@@ -44,7 +45,7 @@ interface IUserAddress {
   };
 }
 
-interface IUserActivity {
+export interface IUserActivity {
   memberSince: Date;
   favorites: Array<{
     kitchens: mongoose.Types.ObjectId;
@@ -59,7 +60,7 @@ interface IUserActivity {
   loyaltyPoints: number;
 }
 
-interface IUserPreferences {
+export interface IUserPreferences {
   meals: {
     type: string;
     spice: string;
@@ -75,7 +76,7 @@ interface IUserPreferences {
   paymentMethod: string[];
 }
 
-interface IUserStatus {
+export interface IUserStatus {
   ban: {
     isBanned: boolean;
     banReason: string | null;
@@ -87,7 +88,7 @@ interface IUserStatus {
   deletedAt: Date | null;
 }
 
-interface IUserAdditionalInfo {
+export interface IUserAdditionalInfo {
   timezone: string;
   isp: string;
   org: string;
@@ -227,6 +228,12 @@ const UserSchema = new mongoose.Schema(
             default: "",
           },
           device: {
+            ipAddress: {
+              type: String,
+              required: false,
+              trim: true,
+              default: "UNKNOWN",
+            },
             type: {
               type: String,
               required: false,

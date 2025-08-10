@@ -18,7 +18,6 @@ import {
   updateUserLoyaltyPointsService,
   deleteUserService,
   getAllUsersService,
-  getAllUsersIncludingDeletedService,
   getUsersByRoleService,
   getActiveUsersService,
   getInactiveUsersService,
@@ -27,8 +26,8 @@ import {
   getDeletedUsersService,
   searchUsersService,
   getUserStatisticsService,
+  // getAllUsersIncludingDeletedService,
 } from "../../services/Auth/user.service";
-import { IUser } from "../../models/Auth/user.model";
 import UserModel from "../../models/Auth/user.model";
 import { decrypt, encrypt } from "../../configs/crypto";
 import { processUserCreation } from "../../utils/user/userCreation";
@@ -40,35 +39,8 @@ export const createUserController = async (
 ): Promise<void> => {
   try {
     const { data } = req.body;
+    const decryptedData = JSON.parse(decrypt(data));
 
-    if (!data) {
-      res.status(400).json({
-        success: false,
-        message: "User data is required",
-      });
-      return;
-    }
-
-    console.log("Received create request with encrypted data:", data);
-
-    let decryptedData;
-    try {
-      const decrypted = decrypt(data);
-      decryptedData = JSON.parse(decrypted);
-    } catch (decryptError) {
-      console.error("Decryption error:", decryptError);
-      res.status(400).json({
-        success: false,
-        message: "Failed to decrypt or parse user data",
-        error:
-          process.env.NODE_ENV === "development"
-            ? (decryptError as Error).message
-            : undefined,
-      });
-      return;
-    }
-
-    // Process user creation using utility function
     const result = await processUserCreation(decryptedData, req);
 
     if (!result.success && result.error) {
@@ -79,8 +51,7 @@ export const createUserController = async (
       return;
     }
 
-    // Encrypt response data
-    const encryptedData = encrypt(JSON.stringify(result.user));
+    const encryptedData: string = encrypt(JSON.stringify(result.user));
 
     res.status(201).json({
       success: true,
@@ -108,7 +79,6 @@ export const loginUserController = async (
     const { data } = req.body;
     const decryptedData = JSON.parse(decrypt(data));
 
-    // Process user login using utility function
     const result = await processUserLogin(decryptedData, req);
 
     if (!result.success && result.error) {
@@ -119,12 +89,7 @@ export const loginUserController = async (
       return;
     }
 
-    // Encrypt response data
-    const responseData = {
-      user: result.user,
-      tokens: result.tokens,
-    };
-    const encryptedData = encrypt(JSON.stringify(responseData));
+    const encryptedData = encrypt(JSON.stringify(result.user));
 
     res.status(200).json({
       success: true,
