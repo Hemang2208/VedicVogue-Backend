@@ -11,6 +11,7 @@ import {
   addUserAddressService,
   updateUserAddressService,
   removeUserAddressService,
+  restoreUserAddressService,
   addToUserCartService,
   removeFromUserCartService,
   clearUserCartService,
@@ -735,15 +736,58 @@ export const removeUserAddressController = async (
       return;
     }
 
+    const encryptedData = encrypt(JSON.stringify(updatedUser));
+
     res.status(200).json({
       success: true,
       message: "Address removed successfully",
+      data: encryptedData,
     });
   } catch (error: unknown) {
     console.log("Error removing user address:", error);
     res.status(500).json({
       success: false,
       message: "Failed to remove address",
+      error:
+        process.env.NODE_ENV === "development"
+          ? (error as Error).message
+          : undefined,
+    });
+  }
+};
+
+export const restoreUserAddressController = async (
+  req: any,
+  res: any
+): Promise<void> => {
+  try {
+    const { id, addressIndex } = req.params;
+
+    const updatedUser = await restoreUserAddressService(
+      id,
+      parseInt(addressIndex)
+    );
+
+    if (!updatedUser) {
+      res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+      return;
+    }
+
+    const encryptedData = encrypt(JSON.stringify(updatedUser));
+
+    res.status(200).json({
+      success: true,
+      message: "Address restored successfully",
+      data: encryptedData,
+    });
+  } catch (error: unknown) {
+    console.log("Error restoring user address:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to restore address",
       error:
         process.env.NODE_ENV === "development"
           ? (error as Error).message

@@ -15,6 +15,7 @@ import {
   addUserAddressController,
   updateUserAddressController,
   removeUserAddressController,
+  restoreUserAddressController,
   addToUserCartController,
   removeFromUserCartController,
   clearUserCartController,
@@ -71,6 +72,7 @@ router.post("/refresh-token", refreshTokenController);
 router.post("/add-address/:id", addUserAddressController);
 router.put("/update-address/:id/:addressIndex", updateUserAddressController);
 router.delete("/remove-address/:id/:addressIndex", removeUserAddressController);
+router.put("/restore-address/:id/:addressIndex", restoreUserAddressController);
 
 // User Cart Management
 router.post("/add-to-cart/:id", addToUserCartController);

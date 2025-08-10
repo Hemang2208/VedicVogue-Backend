@@ -39,10 +39,8 @@ export interface IUserAddress {
   state: string;
   zipcode: string;
   country: string;
-  coordinates: {
-    latitude: number;
-    longitude: number;
-  };
+  isDeleted?: boolean;
+  deletedAt?: Date | null;
 }
 
 export interface IUserActivity {
@@ -89,6 +87,10 @@ export interface IUserStatus {
 }
 
 export interface IUserAdditionalInfo {
+  coordinates: {
+    latitude: number;
+    longitude: number;
+  };
   timezone: string;
   isp: string;
   org: string;
@@ -313,15 +315,13 @@ const UserSchema = new mongoose.Schema(
           type: String,
           required: true,
         },
-        coordinates: {
-          latitude: {
-            type: Number,
-            default: 0,
-          },
-          longitude: {
-            type: Number,
-            default: 0,
-          },
+        isDeleted: {
+          type: Boolean,
+          default: false,
+        },
+        deletedAt: {
+          type: Date,
+          default: null,
         },
       },
     ],
@@ -427,6 +427,16 @@ const UserSchema = new mongoose.Schema(
     },
 
     additionalInfo: {
+      coordinates: {
+        latitude: {
+          type: Number,
+          default: 0,
+        },
+        longitude: {
+          type: Number,
+          default: 0,
+        },
+      },
       timezone: {
         type: String,
         default: "",

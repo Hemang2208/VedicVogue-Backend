@@ -378,26 +378,56 @@ export const updateUserAddressService = async (
       throw new Error("Invalid user ID");
     }
 
+    const user = await UserModel.findById(id);
+    if (!user || user.status.isDeleted) {
+      throw new Error("User not found");
+    }
+
+    // Get active (non-deleted) addresses to map the index correctly
+    const activeAddresses = user.addresses.filter((addr) => !addr.isDeleted);
+
+    if (addressIndex < 0 || addressIndex >= activeAddresses.length) {
+      throw new Error("Invalid address index");
+    }
+
+    // Find the actual index in the full addresses array
+    let actualIndex = -1;
+    let activeCount = 0;
+
+    for (let i = 0; i < user.addresses.length; i++) {
+      if (!user.addresses[i].isDeleted) {
+        if (activeCount === addressIndex) {
+          actualIndex = i;
+          break;
+        }
+        activeCount++;
+      }
+    }
+
+    if (actualIndex === -1) {
+      throw new Error("Address not found");
+    }
+
     const updateQuery: any = {
       lastProfileUpdate: new Date(),
     };
 
     Object.keys(addressData).forEach((key) => {
-      updateQuery[`addresses.${addressIndex}.${key}`] =
+      updateQuery[`addresses.${actualIndex}.${key}`] =
         addressData[key as keyof typeof addressData];
     });
 
-    const user = await UserModel.findOneAndUpdate(
+    const updatedUser = await UserModel.findOneAndUpdate(
       { _id: id, "status.isDeleted": false },
       { $set: updateQuery },
       { new: true, runValidators: true }
     );
 
-    if (!user) {
+    if (!updatedUser) {
       throw new Error("User not found");
     }
 
-    return user as IUser;
+    return updatedUser as IUser;
   } catch (error: any) {
     throw new Error(`Failed to update user address: ${error.message}`);
   }
@@ -417,7 +447,39 @@ export const removeUserAddressService = async (
       throw new Error("User not found");
     }
 
-    user.addresses.splice(addressIndex, 1);
+    // Get active (non-deleted) addresses to map the index correctly
+    const activeAddresses = user.addresses.filter((addr) => !addr.isDeleted);
+
+    if (addressIndex < 0 || addressIndex >= activeAddresses.length) {
+      throw new Error("Invalid address index");
+    }
+
+    // Find the actual index in the full addresses array
+    let actualIndex = -1;
+    let activeCount = 0;
+
+    for (let i = 0; i < user.addresses.length; i++) {
+      if (!user.addresses[i].isDeleted) {
+        if (activeCount === addressIndex) {
+          actualIndex = i;
+          break;
+        }
+        activeCount++;
+      }
+    }
+
+    if (actualIndex === -1) {
+      throw new Error("Address not found");
+    }
+
+    // Check if the address is already soft deleted
+    if (user.addresses[actualIndex].isDeleted) {
+      throw new Error("Address is already deleted");
+    }
+
+    // Soft delete the address by setting isDeleted to true and deletedAt timestamp
+    user.addresses[actualIndex].isDeleted = true;
+    user.addresses[actualIndex].deletedAt = new Date();
     user.lastProfileUpdate = new Date();
 
     await user.save();
@@ -425,6 +487,43 @@ export const removeUserAddressService = async (
     return user as IUser;
   } catch (error: any) {
     throw new Error(`Failed to remove user address: ${error.message}`);
+  }
+};
+
+// Service to restore soft-deleted address
+export const restoreUserAddressService = async (
+  id: string,
+  addressIndex: number
+): Promise<IUser | null> => {
+  try {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new Error("Invalid user ID");
+    }
+
+    const user = await UserModel.findById(id);
+    if (!user || user.status.isDeleted) {
+      throw new Error("User not found");
+    }
+
+    if (addressIndex < 0 || addressIndex >= user.addresses.length) {
+      throw new Error("Invalid address index");
+    }
+
+    // Check if the address is soft deleted
+    if (!user.addresses[addressIndex].isDeleted) {
+      throw new Error("Address is not deleted");
+    }
+
+    // Restore the address by setting isDeleted to false and clearing deletedAt
+    user.addresses[addressIndex].isDeleted = false;
+    user.addresses[addressIndex].deletedAt = null;
+    user.lastProfileUpdate = new Date();
+
+    await user.save();
+
+    return user as IUser;
+  } catch (error: any) {
+    throw new Error(`Failed to restore user address: ${error.message}`);
   }
 };
 
