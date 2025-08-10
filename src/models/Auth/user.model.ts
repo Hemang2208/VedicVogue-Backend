@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { generateUserId } from "../../utils/helpers";
 
 interface IUserAccount {
   email: string;
@@ -141,22 +142,6 @@ export interface IUser extends mongoose.Document {
   lastPasswordChange: Date;
   createdAt: Date;
   updatedAt: Date;
-}
-
-function generateUserId() {
-  const now = new Date();
-  const pad = (n: number) => n.toString().padStart(2, "0");
-  const YYYY = now.getFullYear();
-  const MM = pad(now.getMonth() + 1);
-  const DD = pad(now.getDate());
-  const HH = pad(now.getHours());
-  const mm = pad(now.getMinutes());
-  const ss = pad(now.getSeconds());
-  const randomNum = Math.floor(Math.random() * 100000) // 5-digit random number
-    .toString()
-    .padStart(6, "0"); // 6-digit random number
-
-  return `USER${YYYY}${MM}${DD}${HH}${mm}${ss}${randomNum}`;
 }
 
 const UserSchema = new mongoose.Schema(
@@ -576,11 +561,11 @@ const UserSchema = new mongoose.Schema(
         },
         banReason: {
           type: String,
-          default: "",
+          default: null,
         },
         bannedAt: {
           type: Date,
-          default: "",
+          default: null,
         },
       },
       isVerified: {

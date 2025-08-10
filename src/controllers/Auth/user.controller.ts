@@ -1,5 +1,4 @@
 import {
-  createUserService,
   getUserByIdService,
   getUserByUserIdService,
   getUserByEmailService,
@@ -28,6 +27,8 @@ import {
 } from "../../services/Auth/user.service";
 import { IUser } from "../../models/Auth/user.model";
 import { decrypt, encrypt } from "../../configs/crypto";
+import { processUserCreation } from "../../utils/user/userCreation";
+import { processUserLogin } from "../../utils/user/userAuth";
 
 export const createUserController = async (
   req: any,
@@ -37,31 +38,19 @@ export const createUserController = async (
     const { data } = req.body;
     const decryptedData = JSON.parse(decrypt(data));
 
-    const ipAddress: string | undefined =
-      req.headers["x-forwarded-for"]?.toString().split(",")[0].trim() ||
-      req.socket?.remoteAddress ||
-      req.connection?.remoteAddress ||
-      "UNKNOWN";
+    // Process user creation using utility function
+    const result = await processUserCreation(decryptedData, req);
 
-    const finalData: Partial<IUser> = {
-      ...decryptedData,
-      security: {
-        ...decryptedData.security,
-        ipAddress: ipAddress,
-      },
-      additionalInfo: decryptedData.additionalInfo || {},
-    };
+    if (!result.success && result.error) {
+      res.status(result.error.statusCode).json({
+        success: false,
+        message: result.error.message,
+      });
+      return;
+    }
 
-    const newUser = await createUserService(finalData);
-
-    const responseData = {
-      userID: newUser.userID,
-      fullname: newUser.fullname,
-      email: newUser.account.email,
-      createdAt: new Date().toISOString(),
-    };
-
-    const encryptedData = encrypt(JSON.stringify(responseData));
+    // Encrypt response data
+    const encryptedData = encrypt(JSON.stringify(result.user));
 
     res.status(201).json({
       success: true,
@@ -73,6 +62,50 @@ export const createUserController = async (
     res.status(500).json({
       success: false,
       message: "Failed to create user",
+      error:
+        process.env.NODE_ENV === "development"
+          ? (error as Error).message
+          : undefined,
+    });
+  }
+};
+
+export const loginUserController = async (
+  req: any,
+  res: any
+): Promise<void> => {
+  try {
+    const { data } = req.body;
+    const decryptedData = JSON.parse(decrypt(data));
+
+    // Process user login using utility function
+    const result = await processUserLogin(decryptedData, req);
+
+    if (!result.success && result.error) {
+      res.status(result.error.statusCode).json({
+        success: false,
+        message: result.error.message,
+      });
+      return;
+    }
+
+    // Encrypt response data
+    const responseData = {
+      user: result.user,
+      tokens: result.tokens,
+    };
+    const encryptedData = encrypt(JSON.stringify(responseData));
+
+    res.status(200).json({
+      success: true,
+      message: "Login successful",
+      data: encryptedData,
+    });
+  } catch (error: unknown) {
+    console.log("Error during login:", error);
+    res.status(500).json({
+      success: false,
+      message: "Login failed",
       error:
         process.env.NODE_ENV === "development"
           ? (error as Error).message
@@ -1046,6 +1079,153 @@ export const getUserStatisticsController = async (
         process.env.NODE_ENV === "development"
           ? (error as Error).message
           : undefined,
+    });
+  }
+};
+
+// Token validation controller
+export const validateTokenController = async (
+  req: any,
+  res: any
+): Promise<void> => {
+  try {
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.status(401).json({
+        success: false,
+        valid: false,
+        message: "No valid authorization header"
+      });
+      return;
+    }
+
+    const token = authHeader.substring(7);
+    
+    // Import JWT utilities
+    const { verifyAccessToken } = require("../../utils/jwt");
+    
+    try {
+      const decoded = verifyAccessToken(token);
+      
+      // Optionally verify user still exists and is active
+      const user = await getUserByIdService(decoded.userId);
+      
+      if (!user || !user.status.isActive || user.status.isDeleted) {
+        res.status(401).json({
+          success: false,
+          valid: false,
+          message: "User account is inactive"
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        valid: true,
+        userId: decoded.userId,
+        role: decoded.role
+      });
+    } catch (tokenError) {
+      res.status(401).json({
+        success: false,
+        valid: false,
+        message: "Invalid or expired token"
+      });
+    }
+  } catch (error: unknown) {
+    console.log("Error validating token:", error);
+    res.status(500).json({
+      success: false,
+      valid: false,
+      message: "Token validation failed"
+    });
+  }
+};
+
+// Refresh token controller
+export const refreshTokenController = async (
+  req: any,
+  res: any
+): Promise<void> => {
+  try {
+    const { data } = req.body;
+    
+    if (!data) {
+      res.status(400).json({
+        success: false,
+        message: "Refresh token data is required"
+      });
+      return;
+    }
+
+    const { refreshToken } = JSON.parse(decrypt(data));
+    
+    if (!refreshToken) {
+      res.status(401).json({
+        success: false,
+        message: "Refresh token is required"
+      });
+      return;
+    }
+
+    // Import JWT utilities
+    const { verifyRefreshToken, generateAccessToken } = require("../../utils/jwt");
+    
+    try {
+      const decoded = verifyRefreshToken(refreshToken);
+      
+      // Verify user still exists and is active
+      const user = await getUserByIdService(decoded.userId);
+      
+      if (!user || !user.status.isActive || user.status.isDeleted) {
+        res.status(401).json({
+          success: false,
+          message: "User account is inactive"
+        });
+        return;
+      }
+
+      // Check if refresh token exists in user's tokens array
+      const tokenExists = user.security.tokens.some(
+        (tokenData: any) => tokenData.token === refreshToken
+      );
+
+      if (!tokenExists) {
+        res.status(401).json({
+          success: false,
+          message: "Invalid refresh token"
+        });
+        return;
+      }
+
+      // Generate new access token
+      const newAccessToken = generateAccessToken({
+        userId: (user as any)._id.toString(),
+        userID: user.userID,
+        email: user.account.email,
+        role: user.security.role
+      });
+
+      const responseData = { accessToken: newAccessToken };
+      const encryptedData = encrypt(JSON.stringify(responseData));
+
+      res.status(200).json({
+        success: true,
+        message: "Access token refreshed successfully",
+        data: encryptedData
+      });
+    } catch (tokenError) {
+      res.status(401).json({
+        success: false,
+        message: "Invalid or expired refresh token"
+      });
+    }
+  } catch (error: unknown) {
+    console.log("Error refreshing token:", error);
+    res.status(500).json({
+      success: false,
+      message: "Token refresh failed"
     });
   }
 };

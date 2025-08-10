@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   createUserController,
+  loginUserController,
   getUserByIdController,
   getUserByUserIdController,
   getUserByEmailController,
@@ -26,6 +27,8 @@ import {
   getBannedUsersController,
   searchUsersController,
   getUserStatisticsController,
+  validateTokenController,
+  refreshTokenController,
 } from "../../controllers/Auth/user.controller";
 
 const router = Router();
@@ -41,6 +44,7 @@ router.get("/health", (req: any, res: any) => {
 
 // User CRUD Operations
 router.post("/create", createUserController);
+router.post("/login", loginUserController);
 router.get("/get/:id", getUserByIdController);
 router.get("/get-by-userid/:userID", getUserByUserIdController);
 router.post("/get-by-email", getUserByEmailController);
@@ -53,6 +57,10 @@ router.put("/update-password/:id", updateUserPasswordController);
 router.put("/update-status/:id", updateUserStatusController);
 router.post("/add-token/:id", addUserTokenController);
 router.delete("/remove-token/:id", removeUserTokenController);
+
+// Token Management
+router.get("/validate-token", validateTokenController);
+router.post("/refresh-token", refreshTokenController);
 
 // User Address Management
 router.post("/add-address/:id", addUserAddressController);
