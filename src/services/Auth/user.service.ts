@@ -1,4 +1,4 @@
-import UserModel, { IUser } from "../../models/Auth/user.model";
+import UserModel, { IUser, IUserAccount } from "../../models/Auth/user.model";
 import { Types, SortOrder } from "mongoose";
 
 export const createUserService = async (
@@ -83,15 +83,46 @@ export const updateUserService = async (
       throw new Error("Invalid user ID");
     }
 
+    // Create a copy of updates to avoid modifying the original object
+    const updateData = { ...updates };
+
+    // Remove password from updates if it's not provided or empty
+    // Password updates should be handled by a separate service
+    if (
+      updateData.account?.password === undefined ||
+      updateData.account?.password === ""
+    ) {
+      if (updateData.account) {
+        const { password, ...accountWithoutPassword } = updateData.account;
+        updateData.account = accountWithoutPassword as any; // Use any for partial updates
+      }
+    }
+
+    // Basic validation for email format if provided
+    if (updateData.account?.email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(updateData.account.email)) {
+        throw new Error("Invalid email format");
+      }
+    }
+
+    // Basic validation for phone if provided
+    if (updateData.account?.phone) {
+      const phoneRegex = /^\d{10,15}$/;
+      if (!phoneRegex.test(updateData.account.phone.replace(/\D/g, ""))) {
+        throw new Error("Invalid phone number format");
+      }
+    }
+
     const user = await UserModel.findOneAndUpdate(
       { _id: id, "status.isDeleted": false },
       {
         $set: {
-          ...updates,
+          ...updateData,
           lastProfileUpdate: new Date(),
         },
       },
-      { new: true, runValidators: true }
+      { new: true, runValidators: false }
     );
 
     if (!user) {
@@ -587,6 +618,24 @@ export const deleteUserService = async (id: string): Promise<boolean> => {
   }
 };
 
+export const getAllUsersIncludingDeletedService = async (
+  page: number = 1,
+  limit: number = 10
+): Promise<{
+  users: any[];
+  totalUsers: number;
+  currentPage: number;
+  totalPages: number;
+}> => {
+  try {
+    // No filter - get all users regardless of status
+    const filter = {};
+    return await getAllUsersService(filter, page, limit);
+  } catch (error: any) {
+    throw new Error(`Failed to fetch all users: ${error.message}`);
+  }
+};
+
 export const getAllUsersService = async (
   filter: any = {},
   page: number = 1,
@@ -605,7 +654,10 @@ export const getAllUsersService = async (
       [sortBy]: sortOrder === "asc" ? 1 : -1,
     };
 
-    const queryFilter = { ...filter, "status.isDeleted": false };
+    const queryFilter = {
+      ...filter,
+      // Don't automatically add isDeleted filter - let each service specify what it needs
+    };
 
     const users = await UserModel.find(queryFilter)
       .sort(sort)
@@ -668,6 +720,27 @@ export const getActiveUsersService = async (
     return await getAllUsersService(filter, page, limit);
   } catch (error: any) {
     throw new Error(`Failed to fetch active users: ${error.message}`);
+  }
+};
+
+export const getInactiveUsersService = async (
+  page: number = 1,
+  limit: number = 10
+): Promise<{
+  users: any[];
+  totalUsers: number;
+  currentPage: number;
+  totalPages: number;
+}> => {
+  try {
+    const filter = {
+      "status.isActive": false,
+      "status.isDeleted": false,
+    };
+
+    return await getAllUsersService(filter, page, limit);
+  } catch (error: any) {
+    throw new Error(`Failed to fetch inactive users: ${error.message}`);
   }
 };
 
@@ -737,6 +810,26 @@ export const searchUsersService = async (
     return await getAllUsersService(filter, page, limit);
   } catch (error: any) {
     throw new Error(`Failed to search users: ${error.message}`);
+  }
+};
+
+export const getDeletedUsersService = async (
+  page: number = 1,
+  limit: number = 10
+): Promise<{
+  users: any[];
+  totalUsers: number;
+  currentPage: number;
+  totalPages: number;
+}> => {
+  try {
+    const filter = {
+      "status.isDeleted": true,
+    };
+
+    return await getAllUsersService(filter, page, limit);
+  } catch (error: any) {
+    throw new Error(`Failed to fetch deleted users: ${error.message}`);
   }
 };
 

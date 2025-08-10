@@ -24,8 +24,10 @@ import {
   getAllUsersController,
   getUsersByRoleController,
   getActiveUsersController,
+  getInactiveUsersController,
   getVerifiedUsersController,
   getBannedUsersController,
+  getDeletedUsersController,
   searchUsersController,
   getUserStatisticsController,
   validateTokenController,
@@ -83,8 +85,10 @@ router.put("/update-loyalty-points/:id", updateUserLoyaltyPointsController);
 router.get("/get-all", getAllUsersController);
 router.get("/get-by-role/:role", getUsersByRoleController);
 router.get("/get-active", getActiveUsersController);
+router.get("/get-inactive", getInactiveUsersController);
 router.get("/get-verified", getVerifiedUsersController);
 router.get("/get-banned", getBannedUsersController);
+router.get("/get-deleted", getDeletedUsersController);
 router.get("/search", searchUsersController);
 
 // User Statistics & Analytics

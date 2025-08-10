@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import { generateUserId } from "../../utils/helpers";
 
-interface IUserAccount {
+export interface IUserAccount {
   email: string;
   phone: string;
   password: string;

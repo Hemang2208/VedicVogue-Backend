@@ -18,14 +18,18 @@ import {
   updateUserLoyaltyPointsService,
   deleteUserService,
   getAllUsersService,
+  getAllUsersIncludingDeletedService,
   getUsersByRoleService,
   getActiveUsersService,
+  getInactiveUsersService,
   getVerifiedUsersService,
   getBannedUsersService,
+  getDeletedUsersService,
   searchUsersService,
   getUserStatisticsService,
 } from "../../services/Auth/user.service";
 import { IUser } from "../../models/Auth/user.model";
+import UserModel from "../../models/Auth/user.model";
 import { decrypt, encrypt } from "../../configs/crypto";
 import { processUserCreation } from "../../utils/user/userCreation";
 import { processUserLogin } from "../../utils/user/userAuth";
@@ -36,7 +40,33 @@ export const createUserController = async (
 ): Promise<void> => {
   try {
     const { data } = req.body;
-    const decryptedData = JSON.parse(decrypt(data));
+
+    if (!data) {
+      res.status(400).json({
+        success: false,
+        message: "User data is required",
+      });
+      return;
+    }
+
+    console.log("Received create request with encrypted data:", data);
+
+    let decryptedData;
+    try {
+      const decrypted = decrypt(data);
+      decryptedData = JSON.parse(decrypted);
+    } catch (decryptError) {
+      console.error("Decryption error:", decryptError);
+      res.status(400).json({
+        success: false,
+        message: "Failed to decrypt or parse user data",
+        error:
+          process.env.NODE_ENV === "development"
+            ? (decryptError as Error).message
+            : undefined,
+      });
+      return;
+    }
 
     // Process user creation using utility function
     const result = await processUserCreation(decryptedData, req);
@@ -265,7 +295,40 @@ export const updateUserController = async (
   try {
     const { id } = req.params;
     const { data } = req.body;
-    const updates = JSON.parse(decrypt(data));
+
+    // Validate input
+    if (!id) {
+      res.status(400).json({
+        success: false,
+        message: "User ID is required",
+      });
+      return;
+    }
+
+    if (!data) {
+      res.status(400).json({
+        success: false,
+        message: "Update data is required",
+      });
+      return;
+    }
+
+    let updates;
+    try {
+      const decryptedData = decrypt(data);
+      updates = JSON.parse(decryptedData);
+    } catch (decryptError) {
+      console.error("Decryption error:", decryptError);
+      res.status(400).json({
+        success: false,
+        message: "Failed to decrypt or parse update data",
+        error:
+          process.env.NODE_ENV === "development"
+            ? (decryptError as Error).message
+            : undefined,
+      });
+      return;
+    }
 
     const updatedUser = await updateUserService(id, updates);
 
@@ -340,9 +403,78 @@ export const updateUserStatusController = async (
   try {
     const { id } = req.params;
     const { data } = req.body;
-    const updates = JSON.parse(decrypt(data));
 
-    const updatedUser = await updateUserStatusService(id, updates);
+    // Validate input
+    if (!id) {
+      res.status(400).json({
+        success: false,
+        message: "User ID is required",
+      });
+      return;
+    }
+
+    if (!data) {
+      res.status(400).json({
+        success: false,
+        message: "Status update data is required",
+      });
+      return;
+    }
+
+    let updates;
+    try {
+      const decryptedData = decrypt(data);
+      updates = JSON.parse(decryptedData);
+    } catch (decryptError) {
+      console.error("Status update decryption error:", decryptError);
+      res.status(400).json({
+        success: false,
+        message: "Failed to decrypt or parse status update data",
+        error:
+          process.env.NODE_ENV === "development"
+            ? (decryptError as Error).message
+            : undefined,
+      });
+      return;
+    }
+
+    // Handle direct MongoDB field updates (with dot notation)
+    let updatedUser;
+    if (Object.keys(updates).some((key) => key.includes("."))) {
+      // Direct field update using dot notation
+      // Determine the query based on the operation
+      let query: any = { _id: id };
+
+      // If we're trying to delete a user, they should currently be not deleted
+      if (updates["status.isDeleted"] === true) {
+        query = { _id: id, "status.isDeleted": false };
+      }
+      // If we're trying to restore a user, they should currently be deleted
+      else if (updates["status.isDeleted"] === false) {
+        query = { _id: id, "status.isDeleted": true };
+      }
+      // For other status updates, user should not be deleted
+      else {
+        query = { _id: id, "status.isDeleted": false };
+      }
+
+      updatedUser = await UserModel.findOneAndUpdate(
+        query,
+        { $set: updates },
+        { new: true, runValidators: true }
+      );
+
+      if (!updatedUser) {
+        res.status(404).json({
+          success: false,
+          message: "User not found",
+        });
+        return;
+      }
+    } else {
+      // Use the existing service for standard updates
+      updatedUser = await updateUserStatusService(id, updates);
+    }
 
     if (!updatedUser) {
       res.status(404).json({
@@ -515,9 +647,6 @@ export const logoutUserController = async (
       } = require("../../services/Auth/user.service");
 
       await updateUserLastLogoutService(userId);
-      console.log(
-        `User logout time updated successfully at ${new Date().toISOString()}`
-      );
     } catch (userError) {
       console.log("Error updating user logout info:", userError);
     }
@@ -903,37 +1032,25 @@ export const getAllUsersController = async (
 
     const result = await getAllUsersService({}, page, limit, sortBy, sortOrder);
 
-    // Encrypt data safely
-    let encryptedData: string;
-    let encryptedData2: string;
-
-    try {
-      encryptedData = encrypt(JSON.stringify(result.users || []));
-
-      const paginationData = {
-        totalUsers: result.totalUsers || 0,
-        currentPage: result.currentPage || 1,
-        totalPages: result.totalPages || 0,
-      };
-
-      encryptedData2 = encrypt(JSON.stringify(paginationData));
-    } catch (encryptError) {
-      console.error("Encryption error:", encryptError);
-      encryptedData = JSON.stringify(result.users || []);
-      encryptedData2 = JSON.stringify({
-        totalUsers: result.totalUsers || 0,
-        currentPage: result.currentPage || 1,
-        totalPages: result.totalPages || 0,
-      });
-    }
-
+    // Create the response data structure that matches frontend expectations
     const responseData = {
-      success: true,
-      data: encryptedData,
-      pagination: encryptedData2,
+      users: result.users || [],
+      pagination: {
+        currentPage: result.currentPage || 1,
+        totalPages: result.totalPages || 0,
+        totalUsers: result.totalUsers || 0,
+        limit: limit,
+      },
+      total: result.totalUsers || 0,
     };
 
-    res.status(200).json(responseData);
+    // Encrypt the entire response data as a single object
+    const encryptedData = encrypt(JSON.stringify(responseData));
+
+    res.status(200).json({
+      success: true,
+      data: encryptedData,
+    });
   } catch (error: unknown) {
     console.error("Error fetching users:", error);
     res.status(500).json({
@@ -958,20 +1075,24 @@ export const getUsersByRoleController = async (
 
     const result = await getUsersByRoleService(role, page, limit);
 
-    const encryptedData = encrypt(JSON.stringify(result.users));
-
-    const paginationData = {
-      totalUsers: result.totalUsers,
-      currentPage: result.currentPage,
-      totalPages: result.totalPages,
+    // Create the response data structure that matches frontend expectations
+    const responseData = {
+      users: result.users || [],
+      pagination: {
+        currentPage: result.currentPage || 1,
+        totalPages: result.totalPages || 0,
+        totalUsers: result.totalUsers || 0,
+        limit: limit,
+      },
+      total: result.totalUsers || 0,
     };
 
-    const encryptedData2 = encrypt(JSON.stringify(paginationData));
+    // Encrypt the entire response data as a single object
+    const encryptedData = encrypt(JSON.stringify(responseData));
 
     res.status(200).json({
       success: true,
       data: encryptedData,
-      pagination: encryptedData2,
     });
   } catch (error: unknown) {
     console.log("Error fetching users by role:", error);
@@ -996,26 +1117,72 @@ export const getActiveUsersController = async (
 
     const result = await getActiveUsersService(page, limit);
 
-    const encryptedData = encrypt(JSON.stringify(result.users));
-
-    const paginationData = {
-      totalUsers: result.totalUsers,
-      currentPage: result.currentPage,
-      totalPages: result.totalPages,
+    // Create the response data structure that matches frontend expectations
+    const responseData = {
+      users: result.users || [],
+      pagination: {
+        currentPage: result.currentPage || 1,
+        totalPages: result.totalPages || 0,
+        totalUsers: result.totalUsers || 0,
+        limit: limit,
+      },
+      total: result.totalUsers || 0,
     };
 
-    const encryptedData2 = encrypt(JSON.stringify(paginationData));
+    // Encrypt the entire response data as a single object
+    const encryptedData = encrypt(JSON.stringify(responseData));
 
     res.status(200).json({
       success: true,
       data: encryptedData,
-      pagination: encryptedData2,
     });
   } catch (error: unknown) {
     console.log("Error fetching active users:", error);
     res.status(500).json({
       success: false,
       message: "Failed to fetch active users",
+      error:
+        process.env.NODE_ENV === "development"
+          ? (error as Error).message
+          : undefined,
+    });
+  }
+};
+
+export const getInactiveUsersController = async (
+  req: any,
+  res: any
+): Promise<void> => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+
+    const result = await getInactiveUsersService(page, limit);
+
+    // Create the response data structure that matches frontend expectations
+    const responseData = {
+      users: result.users || [],
+      pagination: {
+        currentPage: result.currentPage || 1,
+        totalPages: result.totalPages || 0,
+        totalUsers: result.totalUsers || 0,
+        limit: limit,
+      },
+      total: result.totalUsers || 0,
+    };
+
+    // Encrypt the entire response data as a single object
+    const encryptedData = encrypt(JSON.stringify(responseData));
+
+    res.status(200).json({
+      success: true,
+      data: encryptedData,
+    });
+  } catch (error: unknown) {
+    console.log("Error fetching inactive users:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch inactive users",
       error:
         process.env.NODE_ENV === "development"
           ? (error as Error).message
@@ -1034,20 +1201,24 @@ export const getVerifiedUsersController = async (
 
     const result = await getVerifiedUsersService(page, limit);
 
-    const encryptedData = encrypt(JSON.stringify(result.users));
-
-    const paginationData = {
-      totalUsers: result.totalUsers,
-      currentPage: result.currentPage,
-      totalPages: result.totalPages,
+    // Create the response data structure that matches frontend expectations
+    const responseData = {
+      users: result.users || [],
+      pagination: {
+        currentPage: result.currentPage || 1,
+        totalPages: result.totalPages || 0,
+        totalUsers: result.totalUsers || 0,
+        limit: limit,
+      },
+      total: result.totalUsers || 0,
     };
 
-    const encryptedData2 = encrypt(JSON.stringify(paginationData));
+    // Encrypt the entire response data as a single object
+    const encryptedData = encrypt(JSON.stringify(responseData));
 
     res.status(200).json({
       success: true,
       data: encryptedData,
-      pagination: encryptedData2,
     });
   } catch (error: unknown) {
     console.log("Error fetching verified users:", error);
@@ -1072,20 +1243,24 @@ export const getBannedUsersController = async (
 
     const result = await getBannedUsersService(page, limit);
 
-    const encryptedData = encrypt(JSON.stringify(result.users));
-
-    const paginationData = {
-      totalUsers: result.totalUsers,
-      currentPage: result.currentPage,
-      totalPages: result.totalPages,
+    // Create the response data structure that matches frontend expectations
+    const responseData = {
+      users: result.users || [],
+      pagination: {
+        currentPage: result.currentPage || 1,
+        totalPages: result.totalPages || 0,
+        totalUsers: result.totalUsers || 0,
+        limit: limit,
+      },
+      total: result.totalUsers || 0,
     };
 
-    const encryptedData2 = encrypt(JSON.stringify(paginationData));
+    // Encrypt the entire response data as a single object
+    const encryptedData = encrypt(JSON.stringify(responseData));
 
     res.status(200).json({
       success: true,
       data: encryptedData,
-      pagination: encryptedData2,
     });
   } catch (error: unknown) {
     console.log("Error fetching banned users:", error);
@@ -1100,12 +1275,54 @@ export const getBannedUsersController = async (
   }
 };
 
+export const getDeletedUsersController = async (
+  req: any,
+  res: any
+): Promise<void> => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+
+    const result = await getDeletedUsersService(page, limit);
+
+    // Create the response data structure that matches frontend expectations
+    const responseData = {
+      users: result.users || [],
+      pagination: {
+        currentPage: result.currentPage || 1,
+        totalPages: result.totalPages || 0,
+        totalUsers: result.totalUsers || 0,
+        limit: limit,
+      },
+      total: result.totalUsers || 0,
+    };
+
+    // Encrypt the entire response data as a single object
+    const encryptedData = encrypt(JSON.stringify(responseData));
+
+    res.status(200).json({
+      success: true,
+      data: encryptedData,
+    });
+  } catch (error: unknown) {
+    console.log("Error fetching deleted users:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch deleted users",
+      error:
+        process.env.NODE_ENV === "development"
+          ? (error as Error).message
+          : undefined,
+    });
+  }
+};
+
 export const searchUsersController = async (
   req: any,
   res: any
 ): Promise<void> => {
   try {
-    const { searchTerm } = req.query;
+    const { query: searchTerm } = req.query; // Note: using 'query' parameter as per frontend
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
 
@@ -1119,20 +1336,24 @@ export const searchUsersController = async (
 
     const result = await searchUsersService(searchTerm, page, limit);
 
-    const encryptedData = encrypt(JSON.stringify(result.users));
-
-    const paginationData = {
-      totalUsers: result.totalUsers,
-      currentPage: result.currentPage,
-      totalPages: result.totalPages,
+    // Create the response data structure that matches frontend expectations
+    const responseData = {
+      users: result.users || [],
+      pagination: {
+        currentPage: result.currentPage || 1,
+        totalPages: result.totalPages || 0,
+        totalUsers: result.totalUsers || 0,
+        limit: limit,
+      },
+      total: result.totalUsers || 0,
     };
 
-    const encryptedData2 = encrypt(JSON.stringify(paginationData));
+    // Encrypt the entire response data as a single object
+    const encryptedData = encrypt(JSON.stringify(responseData));
 
     res.status(200).json({
       success: true,
       data: encryptedData,
-      pagination: encryptedData2,
     });
   } catch (error: unknown) {
     console.log("Error searching users:", error);
