@@ -86,15 +86,16 @@ export const updateUserService = async (
     // Create a copy of updates to avoid modifying the original object
     const updateData = { ...updates };
 
-    // Remove password from updates if it's not provided or empty
-    // Password updates should be handled by a separate service
-    if (
-      updateData.account?.password === undefined ||
-      updateData.account?.password === ""
-    ) {
-      if (updateData.account) {
-        const { password, ...accountWithoutPassword } = updateData.account;
-        updateData.account = accountWithoutPassword as any; // Use any for partial updates
+    // CRITICAL FIX: Never allow password to be overwritten through general updates
+    // Password updates should ONLY be handled by the dedicated password service
+    if (updateData.account) {
+      // Always remove password from updates to prevent accidental overwrites
+      const { password, ...accountWithoutPassword } = updateData.account;
+      updateData.account = accountWithoutPassword as any;
+
+      // If account object would be empty after removing password, don't update account at all
+      if (Object.keys(accountWithoutPassword).length === 0) {
+        delete updateData.account;
       }
     }
 
@@ -114,14 +115,44 @@ export const updateUserService = async (
       }
     }
 
+    // Use dot notation for safer partial updates to prevent overwriting nested objects
+    const flattenedUpdates: any = {};
+
+    // Flatten the update object using dot notation for safer updates
+    const flattenObject = (obj: any, prefix: string = "") => {
+      Object.keys(obj).forEach((key) => {
+        const value = obj[key];
+        const newKey = prefix ? `${prefix}.${key}` : key;
+
+        // CRITICAL: Never allow password field to be updated through this service
+        if (newKey === "account.password") {
+          console.warn(
+            "Blocked attempt to update password through general update service"
+          );
+          return;
+        }
+
+        if (
+          value &&
+          typeof value === "object" &&
+          !Array.isArray(value) &&
+          !(value instanceof Date)
+        ) {
+          flattenObject(value, newKey);
+        } else {
+          flattenedUpdates[newKey] = value;
+        }
+      });
+    };
+
+    flattenObject(updateData);
+
+    // Always update the lastProfileUpdate timestamp
+    flattenedUpdates.lastProfileUpdate = new Date();
+
     const user = await UserModel.findOneAndUpdate(
       { _id: id, "status.isDeleted": false },
-      {
-        $set: {
-          ...updateData,
-          lastProfileUpdate: new Date(),
-        },
-      },
+      { $set: flattenedUpdates },
       { new: true, runValidators: false }
     );
 
@@ -231,7 +262,7 @@ export const updateUserStatusService = async (
       { _id: id, "status.isDeleted": false },
       { $set: statusUpdates },
       { new: true, runValidators: true }
-    );
+    ).select("+account.password");
 
     if (!user) {
       throw new Error("User not found");

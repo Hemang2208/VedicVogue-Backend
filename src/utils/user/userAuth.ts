@@ -43,21 +43,21 @@ export const authenticateUser = async (
     if (!user.status.isActive) {
       return {
         success: false,
-        error: "Account is deactivated. Please contact support.",
+        error: "Your account is inactive. Kindly talk to Support on /contact to get your account updated.",
       };
     }
 
     if (user.status.ban.isBanned) {
       return {
         success: false,
-        error: `Account is banned: ${user.status.ban.banReason}`,
+        error: "Your account is banned. Kindly talk to Support on /contact to get your account updated.",
       };
     }
 
     if (user.status.isDeleted) {
       return {
         success: false,
-        error: "Account not found",
+        error: "Your account is deleted. Kindly talk to Support on /contact to get your account updated.",
       };
     }
 

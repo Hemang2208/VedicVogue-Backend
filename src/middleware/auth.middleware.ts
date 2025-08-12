@@ -38,9 +38,9 @@ export const authenticateToken = async (
     }
 
     if (!user.status.isActive) {
-      res.status(401).json({
+      res.status(403).json({
         success: false,
-        message: "Account is deactivated",
+        message: "Your account is inactive. Kindly talk to Support on /contact to get your account updated.",
       });
       return;
     }
@@ -48,15 +48,15 @@ export const authenticateToken = async (
     if (user.status.ban.isBanned) {
       res.status(403).json({
         success: false,
-        message: `Account is banned: ${user.status.ban.banReason}`,
+        message: "Your account is banned. Kindly talk to Support on /contact to get your account updated.",
       });
       return;
     }
 
     if (user.status.isDeleted) {
-      res.status(401).json({
+      res.status(403).json({
         success: false,
-        message: "Account not found",
+        message: "Your account is deleted. Kindly talk to Support on /contact to get your account updated.",
       });
       return;
     }

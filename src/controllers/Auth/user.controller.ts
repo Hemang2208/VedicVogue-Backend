@@ -407,6 +407,9 @@ export const updateUserStatusController = async (
     // Handle direct MongoDB field updates (with dot notation)
     let updatedUser;
     if (Object.keys(updates).some((key) => key.includes("."))) {
+      console.log("Direct field update with dot notation");
+      console.log("Updates being applied:", JSON.stringify(updates, null, 2));
+
       // Direct field update using dot notation
       // Determine the query based on the operation
       let query: any = { _id: id };
@@ -424,11 +427,60 @@ export const updateUserStatusController = async (
         query = { _id: id, "status.isDeleted": false };
       }
 
+      console.log("Query used:", JSON.stringify(query, null, 2));
+
+      // Get user before update to check password
+      const userBefore = await UserModel.findOne(query).select(
+        "+account.password"
+      );
+      console.log(
+        "User before update - has password:",
+        !!(userBefore as any)?.account?.password
+      );
+
+      // CRITICAL FIX: Ensure we never overwrite or lose the password field
+      // Only update the specific status fields, never touch account.password
+      const safeUpdates = { ...updates };
+
+      // Remove any account-level updates that might affect password
+      Object.keys(safeUpdates).forEach((key) => {
+        if (key.startsWith("account.") && key !== "account.password") {
+          // Allow non-password account updates, but be careful
+        } else if (key === "account") {
+          // Never allow direct account object replacement
+          delete safeUpdates[key];
+          console.warn(
+            "Prevented direct account object replacement that could lose password"
+          );
+        }
+      });
+
       updatedUser = await UserModel.findOneAndUpdate(
         query,
-        { $set: updates },
+        { $set: safeUpdates },
         { new: true, runValidators: true }
+      ).select("+account.password");
+
+      console.log(
+        "User after update - has password:",
+        !!(updatedUser as any)?.account?.password
       );
+
+      // Additional safety check: if password was lost during update, restore it
+      if (
+        userBefore?.account?.password &&
+        !(updatedUser as any)?.account?.password
+      ) {
+        console.error("PASSWORD WAS LOST DURING UPDATE! Restoring...");
+        updatedUser = await UserModel.findOneAndUpdate(
+          { _id: id },
+          {
+            $set: { "account.password": (userBefore as any).account.password },
+          },
+          { new: true, runValidators: true }
+        ).select("+account.password");
+        console.log("Password restored successfully");
+      }
 
       if (!updatedUser) {
         res.status(404).json({
@@ -1431,11 +1483,20 @@ export const validateTokenController = async (
       // Optionally verify user still exists and is active
       const user = await getUserByIdService(decoded.userId);
 
-      if (!user || !user.status.isActive || user.status.isDeleted) {
+      if (!user || !user.status.isActive || user.status.isDeleted || user.status.ban.isBanned) {
+        let message = "User account is inactive";
+        if (user && user.status.ban.isBanned) {
+          message = "Your account is banned. Kindly talk to Support on /contact to get your account updated.";
+        } else if (user && user.status.isDeleted) {
+          message = "Your account is deleted. Kindly talk to Support on /contact to get your account updated.";
+        } else if (user && !user.status.isActive) {
+          message = "Your account is inactive. Kindly talk to Support on /contact to get your account updated.";
+        }
+        
         res.status(401).json({
           success: false,
           valid: false,
-          message: "User account is inactive",
+          message: message,
         });
         return;
       }
@@ -1501,10 +1562,19 @@ export const refreshTokenController = async (
       // Verify user still exists and is active
       const user = await getUserByIdService(decoded.userId);
 
-      if (!user || !user.status.isActive || user.status.isDeleted) {
+      if (!user || !user.status.isActive || user.status.isDeleted || user.status.ban.isBanned) {
+        let message = "User account is inactive";
+        if (user && user.status.ban.isBanned) {
+          message = "Your account is banned. Kindly talk to Support on /contact to get your account updated.";
+        } else if (user && user.status.isDeleted) {
+          message = "Your account is deleted. Kindly talk to Support on /contact to get your account updated.";
+        } else if (user && !user.status.isActive) {
+          message = "Your account is inactive. Kindly talk to Support on /contact to get your account updated.";
+        }
+        
         res.status(401).json({
           success: false,
-          message: "User account is inactive",
+          message: message,
         });
         return;
       }
