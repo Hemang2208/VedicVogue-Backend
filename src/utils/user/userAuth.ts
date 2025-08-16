@@ -10,6 +10,7 @@ import {
   sanitizeUserForResponse,
   getClientIpAddress,
   parseDeviceInfo,
+  getLocationFromIP,
 } from "../helpers";
 
 export interface LoginData {
@@ -115,6 +116,7 @@ export const generateAndStoreTokens = async (
       os: deviceInfo.os,
       memory: 0,
       cores: 0,
+      location: getLocationFromIP(ipAddress),
     };
 
     await addUserTokenService(
@@ -156,14 +158,15 @@ export const processUserLogin = async (
         // Try to get user info for logging even if login failed
         const userForLogging = await getUserByEmailService(data.email.toLowerCase().trim());
         if (userForLogging) {
+          const ipAddress = getClientIpAddress(req);
           await addSecurityActivityService(userForLogging.userID, {
             type: "failed_login",
             description: `Failed login attempt for ${data.email}`,
             status: "warning",
-            location: getClientIpAddress(req),
-            ipAddress: getClientIpAddress(req),
+            location: getLocationFromIP(ipAddress),
+            ipAddress: ipAddress,
             userAgent: req.headers["user-agent"] || "",
-            deviceInfo: parseDeviceInfo(req),
+            deviceInfo: parseDeviceInfo(req.headers["user-agent"] || ""),
           });
         }
       } catch (logError) {
@@ -185,14 +188,15 @@ export const processUserLogin = async (
 
     // Log successful login
     try {
+      const ipAddress = getClientIpAddress(req);
       await addSecurityActivityService(userResponse.userID, {
         type: "login",
         description: "Successful login",
         status: "success",
-        location: getClientIpAddress(req),
-        ipAddress: getClientIpAddress(req),
+        location: getLocationFromIP(ipAddress),
+        ipAddress: ipAddress,
         userAgent: req.headers["user-agent"] || "",
-        deviceInfo: parseDeviceInfo(req),
+        deviceInfo: parseDeviceInfo(req.headers["user-agent"] || ""),
       });
     } catch (logError) {
       console.error("Error logging successful login:", logError);

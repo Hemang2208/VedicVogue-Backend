@@ -1,6 +1,9 @@
 import UserModel, { IUser, IUserAccount } from "../../models/Auth/user.model";
 import { Types, SortOrder } from "mongoose";
 
+// Constants for limits
+const MAX_SESSIONS = 10;
+
 export const createUserService = async (
   userData: Partial<IUser>
 ): Promise<IUser> => {
@@ -300,18 +303,37 @@ export const addUserTokenService = async (
       },
     };
 
-    const user = await UserModel.findOneAndUpdate(
-      { _id: id, "status.isDeleted": false },
-      {
-        $push: { "security.tokens": tokenData },
-        $set: { lastLogin: new Date() },
-      },
-      { new: true, runValidators: true }
-    );
-
-    if (!user) {
+    // First, get the user to check current tokens
+    const currentUser = await UserModel.findOne({ _id: id, "status.isDeleted": false });
+    
+    if (!currentUser) {
       throw new Error("User not found");
     }
+
+    // Initialize security.tokens if it doesn't exist
+    if (!currentUser.security) {
+      currentUser.security = {
+        role: "user",
+        tokens: [],
+        activities: [],
+      };
+    }
+
+    if (!currentUser.security.tokens) {
+      currentUser.security.tokens = [];
+    }
+
+    // Add new token to the beginning (most recent first)
+    currentUser.security.tokens.unshift(tokenData);
+
+    // Keep only the latest 10 sessions/tokens
+    if (currentUser.security.tokens.length > MAX_SESSIONS) {
+      currentUser.security.tokens = currentUser.security.tokens.slice(0, MAX_SESSIONS);
+    }
+
+    // Update lastLogin and save
+    currentUser.lastLogin = new Date();
+    const user = await currentUser.save();
 
     return user as IUser;
   } catch (error: any) {

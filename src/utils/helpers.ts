@@ -135,3 +135,29 @@ export const parseDeviceInfo = (userAgent: string) => {
 export const sleep = (ms: number): Promise<void> => {
   return new Promise(resolve => setTimeout(resolve, ms));
 };
+
+/**
+ * Get location information based on IP address
+ * This is a simplified implementation - in production, you'd use a proper geolocation service
+ * @param ipAddress - IP address to get location for
+ * @returns Location string or "Unknown location"
+ */
+export const getLocationFromIP = (ipAddress: string): string => {
+  // For localhost and private IPs, return a default location
+  if (!ipAddress || 
+      ipAddress === '127.0.0.1' || 
+      ipAddress === '::1' || 
+      ipAddress.startsWith('192.168.') || 
+      ipAddress.startsWith('10.') || 
+      ipAddress.startsWith('172.')) {
+    return 'Local Network, India';
+  }
+
+  // For demo purposes, return a default Indian location
+  // In production, you would integrate with a geolocation API like:
+  // - MaxMind GeoIP2
+  // - IP-API
+  // - ipinfo.io
+  // - ipgeolocation.io
+  return 'India';
+};

@@ -9,6 +9,7 @@ import {
   getSecurityActivityController,
   getSecurityActivitySummaryController,
   logSecurityActivityController,
+  enforceSecurityLimitsController,
 } from "../../controllers/Auth/security.controller";
 import { authenticateToken } from "../../middleware/auth.middleware";
 
@@ -33,5 +34,8 @@ router.delete("/sessions", terminateAllSessionsController);
 router.get("/activity", getSecurityActivityController);
 router.get("/activity/summary", getSecurityActivitySummaryController);
 router.post("/activity/log", logSecurityActivityController);
+
+// Admin routes
+router.post("/enforce-limits", enforceSecurityLimitsController);
 
 export default router;

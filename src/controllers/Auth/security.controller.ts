@@ -10,6 +10,7 @@ import {
   addSecurityActivityService,
   getSecurityActivitySummaryService,
   cleanupOldSecurityActivitiesService,
+  enforceSecurityLimitsService,
 } from "../../services/Auth/security.service";
 import { decrypt, encrypt } from "../../configs/crypto";
 import { getDeviceInfo } from "../../utils/helpers";
@@ -21,7 +22,7 @@ export const getSecuritySettingsController = async (
 ): Promise<void> => {
   try {
     const userID = req.user?.userID;
-    
+
     if (!userID) {
       res.status(401).json({
         success: false,
@@ -31,7 +32,7 @@ export const getSecuritySettingsController = async (
     }
 
     const securitySettings = await getUserSecuritySettingsService(userID);
-    
+
     res.status(200).json({
       success: true,
       message: "Security settings retrieved successfully",
@@ -55,7 +56,7 @@ export const updateSecuritySettingsController = async (
   try {
     const userID = req.user?.userID;
     const { data } = req.body;
-    
+
     if (!userID) {
       res.status(401).json({
         success: false,
@@ -65,8 +66,11 @@ export const updateSecuritySettingsController = async (
     }
 
     const decryptedData = JSON.parse(decrypt(data));
-    const updatedSettings = await updateSecuritySettingsService(userID, decryptedData);
-    
+    const updatedSettings = await updateSecuritySettingsService(
+      userID,
+      decryptedData
+    );
+
     // Log security activity
     await addSecurityActivityService(userID, {
       type: "settings_change",
@@ -100,7 +104,7 @@ export const changePasswordController = async (
   try {
     const userID = req.user?.userID;
     const { data } = req.body;
-    
+
     if (!userID) {
       res.status(401).json({
         success: false,
@@ -111,9 +115,13 @@ export const changePasswordController = async (
 
     const decryptedData = JSON.parse(decrypt(data));
     const { currentPassword, newPassword } = decryptedData;
-    
-    const result = await changePasswordService(userID, currentPassword, newPassword);
-    
+
+    const result = await changePasswordService(
+      userID,
+      currentPassword,
+      newPassword
+    );
+
     if (!result.success) {
       res.status(400).json({
         success: false,
@@ -153,7 +161,7 @@ export const getActiveSessionsController = async (
 ): Promise<void> => {
   try {
     const userID = req.user?.userID;
-    
+
     if (!userID) {
       res.status(401).json({
         success: false,
@@ -163,7 +171,7 @@ export const getActiveSessionsController = async (
     }
 
     const sessions = await getActiveSessionsService(userID);
-    
+
     res.status(200).json({
       success: true,
       message: "Active sessions retrieved successfully",
@@ -187,7 +195,7 @@ export const terminateSessionController = async (
   try {
     const userID = req.user?.userID;
     const { sessionId } = req.params;
-    
+
     if (!userID) {
       res.status(401).json({
         success: false,
@@ -197,7 +205,7 @@ export const terminateSessionController = async (
     }
 
     const result = await terminateSessionService(userID, sessionId);
-    
+
     if (!result.success) {
       res.status(400).json({
         success: false,
@@ -238,7 +246,7 @@ export const terminateAllSessionsController = async (
   try {
     const userID = req.user?.userID;
     const currentToken = req.headers.authorization?.replace("Bearer ", "");
-    
+
     if (!userID || !currentToken) {
       res.status(401).json({
         success: false,
@@ -248,7 +256,7 @@ export const terminateAllSessionsController = async (
     }
 
     const result = await terminateAllSessionsService(userID, currentToken);
-    
+
     // Log security activity
     await addSecurityActivityService(userID, {
       type: "all_sessions_terminated",
@@ -281,7 +289,7 @@ export const getSecurityActivityController = async (
   try {
     const userID = req.user?.userID;
     const { page = 1, limit = 20, type, status } = req.query;
-    
+
     if (!userID) {
       res.status(401).json({
         success: false,
@@ -301,7 +309,7 @@ export const getSecurityActivityController = async (
       parseInt(limit as string),
       filters
     );
-    
+
     res.status(200).json({
       success: true,
       message: "Security activity retrieved successfully",
@@ -325,7 +333,7 @@ export const getSecurityActivitySummaryController = async (
   try {
     const userID = req.user?.userID;
     const { days = 30 } = req.query;
-    
+
     if (!userID) {
       res.status(401).json({
         success: false,
@@ -338,7 +346,7 @@ export const getSecurityActivitySummaryController = async (
       userID,
       parseInt(days as string)
     );
-    
+
     res.status(200).json({
       success: true,
       message: "Security activity summary retrieved successfully",
@@ -362,7 +370,7 @@ export const logSecurityActivityController = async (
   try {
     const userID = req.user?.userID;
     const { data } = req.body;
-    
+
     if (!userID) {
       res.status(401).json({
         success: false,
@@ -372,7 +380,7 @@ export const logSecurityActivityController = async (
     }
 
     const activityData = JSON.parse(decrypt(data));
-    
+
     await addSecurityActivityService(userID, {
       ...activityData,
       ipAddress: activityData.ipAddress || req.ip,
@@ -386,6 +394,40 @@ export const logSecurityActivityController = async (
     });
   } catch (error: any) {
     console.error("Error logging security activity:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+};
+
+// Enforce security limits (Admin endpoint)
+export const enforceSecurityLimitsController = async (
+  req: any,
+  res: any
+): Promise<void> => {
+  try {
+    // Only allow admin users to call this endpoint
+    const userRole = req.user?.role;
+
+    if (userRole !== "admin") {
+      res.status(403).json({
+        success: false,
+        message: "Access denied. Admin privileges required.",
+      });
+      return;
+    }
+
+    const result = await enforceSecurityLimitsService();
+
+    res.status(200).json({
+      success: true,
+      message: "Security limits enforced successfully",
+      data: encrypt(JSON.stringify(result)),
+    });
+  } catch (error: any) {
+    console.error("Error enforcing security limits:", error);
     res.status(500).json({
       success: false,
       message: "Internal server error",

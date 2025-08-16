@@ -2,6 +2,10 @@ import UserModel, { IUser } from "../../models/Auth/user.model";
 import { comparePassword, hashPassword } from "../../utils/password";
 import mongoose from "mongoose";
 
+// Constants for limits
+const MAX_ACTIVITIES = 20;
+const MAX_SESSIONS = 10;
+
 // Interface for security settings
 export interface SecuritySettings {
   twoFactorAuth: boolean;
@@ -186,7 +190,8 @@ export const getActiveSessionsService = async (
       });
     }
 
-    return sessions;
+    // Ensure we don't return more than the maximum allowed sessions
+    return sessions.slice(0, MAX_SESSIONS);
   } catch (error: any) {
     console.error("Error fetching active sessions:", error);
     throw new Error("Failed to fetch active sessions");
@@ -325,8 +330,11 @@ export const getSecurityActivityService = async (
       })
     );
 
+    // Additional safety check to ensure we don't return more than maximum activities
+    const finalActivities = transformedActivities.slice(0, MAX_ACTIVITIES);
+
     // If no activities found, create an initial one
-    if (transformedActivities.length === 0 && page === 1) {
+    if (finalActivities.length === 0 && page === 1) {
       const initialActivity = {
         type: "login",
         description: "Account accessed",
@@ -350,7 +358,7 @@ export const getSecurityActivityService = async (
     }
 
     return {
-      activities: transformedActivities,
+      activities: finalActivities,
       total,
       page,
       totalPages: Math.ceil(total / limit),
@@ -405,9 +413,12 @@ export const addSecurityActivityService = async (
     // Add activity to the beginning of the array (most recent first)
     user.security.activities.unshift(newActivity);
 
-    // Keep only the latest 1000 activities to prevent unlimited growth
-    if (user.security.activities.length > 1000) {
-      user.security.activities = user.security.activities.slice(0, 1000);
+    // Keep only the latest 20 activities to prevent unlimited growth
+    if (user.security.activities.length > MAX_ACTIVITIES) {
+      user.security.activities = user.security.activities.slice(
+        0,
+        MAX_ACTIVITIES
+      );
     }
 
     // Save the updated user document
@@ -540,5 +551,80 @@ const getRelativeTime = (date: Date): string => {
   } else {
     const days = Math.floor(diffInSeconds / 86400);
     return `${days} day${days > 1 ? "s" : ""} ago`;
+  }
+};
+
+/**
+ * Enforce activity and session limits across all users
+ * This function can be called periodically to ensure database consistency
+ */
+export const enforceSecurityLimitsService = async (): Promise<{
+  usersUpdated: number;
+  activitiesTrimmed: number;
+  sessionsTrimmed: number;
+}> => {
+  try {
+    let usersUpdated = 0;
+    let activitiesTrimmed = 0;
+    let sessionsTrimmed = 0;
+
+    // Find all users with security data
+    const users = await UserModel.find({
+      $or: [
+        { "security.activities.20": { $exists: true } }, // Users with more than 20 activities
+        { "security.tokens.10": { $exists: true } }, // Users with more than 10 tokens
+      ],
+    });
+
+    for (const user of users) {
+      let userModified = false;
+
+      // Trim activities to MAX_ACTIVITIES
+      if (
+        user.security?.activities &&
+        user.security.activities.length > MAX_ACTIVITIES
+      ) {
+        const originalLength = user.security.activities.length;
+        user.security.activities = user.security.activities
+          .sort(
+            (a, b) =>
+              new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+          ) // Sort by timestamp desc
+          .slice(0, MAX_ACTIVITIES);
+        activitiesTrimmed += originalLength - user.security.activities.length;
+        userModified = true;
+      }
+
+      // Trim sessions to MAX_SESSIONS
+      if (user.security?.tokens && user.security.tokens.length > MAX_SESSIONS) {
+        const originalLength = user.security.tokens.length;
+        user.security.tokens = user.security.tokens
+          .sort(
+            (a, b) =>
+              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          ) // Sort by createdAt desc
+          .slice(0, MAX_SESSIONS);
+        sessionsTrimmed += originalLength - user.security.tokens.length;
+        userModified = true;
+      }
+
+      if (userModified) {
+        await user.save();
+        usersUpdated++;
+      }
+    }
+
+    console.log(
+      `Security limits enforced: ${usersUpdated} users updated, ${activitiesTrimmed} activities trimmed, ${sessionsTrimmed} sessions trimmed`
+    );
+
+    return {
+      usersUpdated,
+      activitiesTrimmed,
+      sessionsTrimmed,
+    };
+  } catch (error: any) {
+    console.error("Error enforcing security limits:", error);
+    throw new Error("Failed to enforce security limits");
   }
 };
