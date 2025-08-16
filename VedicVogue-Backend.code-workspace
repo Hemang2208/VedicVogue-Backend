@@ -1,0 +1,14 @@
+{
+  "folders": [
+    {
+      "path": "."
+    }
+  ],
+  "settings": {
+    "files.associations": {
+      ".dockerignore": "plaintext",
+      "Dockerfile": "dockerfile"
+    },
+    "typescript.preferences.includePackageJsonAutoImports": "auto"
+  }
+}
