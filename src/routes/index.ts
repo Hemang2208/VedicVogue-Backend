@@ -7,6 +7,7 @@ import recoveryRoutes from "./Auth/recovery.route";
 import forgotPasswordRoutes from "./Auth/forgotPassword.route";
 import securityRoutes from "./Auth/security.route";
 import emailVerificationRoutes from "./EmailVerification/emailVerification.route";
+import menuRoutes from "./Menu/menu.route";
 
 import { Router } from "express";
 const router = Router();
@@ -20,5 +21,6 @@ router.use("/emails", nodemailerRoutes);
 router.use("/recovery", recoveryRoutes);
 router.use("/forgot-password", forgotPasswordRoutes);
 router.use("/email-verification", emailVerificationRoutes);
+router.use("/menu", menuRoutes);
 
 export default router;

@@ -34,6 +34,22 @@ export const generateUserId = (): string => {
   return `USER${YYYY}${MM}${DD}${HH}${mm}${ss}${randomNum}`;
 };
 
+export const generateMenuId = (): string => {
+  const now = new Date();
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  const YYYY = now.getFullYear();
+  const MM = pad(now.getMonth() + 1);
+  const DD = pad(now.getDate());
+  const HH = pad(now.getHours());
+  const mm = pad(now.getMinutes());
+  const ss = pad(now.getSeconds());
+  const randomNum = Math.floor(Math.random() * 100000) // 5-digit random number
+    .toString()
+    .padStart(6, "0"); // 6-digit random number
+
+  return `MENU${YYYY}${MM}${DD}${HH}${mm}${ss}${randomNum}`;
+};
+
 export const sanitizeUserForResponse = (user: any) => {
   const userObj = user.toObject ? user.toObject() : user;
   
