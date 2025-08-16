@@ -12,7 +12,13 @@ export interface IUserAccount {
 export interface IUserSecurity {
   role?: "user" | "admin" | "captain" | "kitchen";
   ipAddress?: string;
+  twoFactorAuth?: boolean;
+  loginNotifications?: boolean;
+  sessionTimeout?: boolean;
+  deviceTracking?: boolean;
+  passwordExpiry?: boolean;
   tokens: Array<{
+    _id?: string;
     token: string;
     createdAt: Date;
     deviceInfo?: string;
@@ -25,7 +31,29 @@ export interface IUserSecurity {
       os: string;
       memory: number;
       cores: number;
+      location?: string;
     };
+  }>;
+  activities: Array<{
+    _id?: string;
+    type: string;
+    description: string;
+    timestamp: Date;
+    status: string;
+    location?: string;
+    ipAddress?: string;
+    userAgent?: string;
+    deviceInfo?: {
+      type: string;
+      brand: string;
+      model: string;
+      browser: string;
+      os: string;
+      memory?: number;
+      cores?: number;
+      location?: string;
+    };
+    metadata?: any;
   }>;
 }
 
@@ -213,6 +241,26 @@ const UserSchema = new mongoose.Schema(
         trim: true,
         default: "UNKNOWN",
       },
+      twoFactorAuth: {
+        type: Boolean,
+        default: false,
+      },
+      loginNotifications: {
+        type: Boolean,
+        default: true,
+      },
+      sessionTimeout: {
+        type: Boolean,
+        default: true,
+      },
+      deviceTracking: {
+        type: Boolean,
+        default: true,
+      },
+      passwordExpiry: {
+        type: Boolean,
+        default: false,
+      },
       tokens: [
         {
           token: {
@@ -271,6 +319,109 @@ const UserSchema = new mongoose.Schema(
               required: false,
               default: 0,
             },
+            location: {
+              type: String,
+              required: false,
+              default: "",
+            },
+          },
+        },
+      ],
+      activities: [
+        {
+          type: {
+            type: String,
+            required: true,
+            enum: [
+              "login",
+              "logout", 
+              "password_change",
+              "settings_change",
+              "session_terminated",
+              "all_sessions_terminated",
+              "failed_login",
+              "account_locked",
+              "two_factor_enabled",
+              "two_factor_disabled",
+              "password_reset_requested",
+              "password_reset_completed",
+              "suspicious_activity",
+              "security_breach_detected",
+              "device_added",
+              "device_removed"
+            ],
+            index: true,
+          },
+          description: {
+            type: String,
+            required: true,
+            trim: true,
+            maxlength: 500,
+          },
+          timestamp: {
+            type: Date,
+            required: true,
+            default: Date.now,
+            index: true,
+          },
+          status: {
+            type: String,
+            required: true,
+            enum: ["success", "failed", "warning", "info", "error"],
+            default: "success",
+            index: true,
+          },
+          location: {
+            type: String,
+            trim: true,
+            maxlength: 200,
+          },
+          ipAddress: {
+            type: String,
+            trim: true,
+          },
+          userAgent: {
+            type: String,
+            trim: true,
+            maxlength: 1000,
+          },
+          deviceInfo: {
+            type: {
+              type: String,
+              trim: true,
+            },
+            brand: {
+              type: String,
+              trim: true,
+            },
+            model: {
+              type: String,
+              trim: true,
+            },
+            browser: {
+              type: String,
+              trim: true,
+            },
+            os: {
+              type: String,
+              trim: true,
+            },
+            memory: {
+              type: Number,
+              min: 0,
+            },
+            cores: {
+              type: Number,
+              min: 0,
+            },
+            location: {
+              type: String,
+              trim: true,
+            },
+          },
+          metadata: {
+            type: mongoose.Schema.Types.Mixed,
+            default: {},
           },
         },
       ],

@@ -5,6 +5,7 @@ import {
   getUserByEmailService,
   addUserTokenService,
 } from "../../services/Auth/user.service";
+import { addSecurityActivityService } from "../../services/Auth/security.service";
 import {
   sanitizeUserForResponse,
   getClientIpAddress,
@@ -150,6 +151,25 @@ export const processUserLogin = async (
     const authResult = await authenticateUser(data.email, data.password);
 
     if (!authResult.success || !authResult.user) {
+      // Log failed login attempt
+      try {
+        // Try to get user info for logging even if login failed
+        const userForLogging = await getUserByEmailService(data.email.toLowerCase().trim());
+        if (userForLogging) {
+          await addSecurityActivityService(userForLogging.userID, {
+            type: "failed_login",
+            description: `Failed login attempt for ${data.email}`,
+            status: "warning",
+            location: getClientIpAddress(req),
+            ipAddress: getClientIpAddress(req),
+            userAgent: req.headers["user-agent"] || "",
+            deviceInfo: parseDeviceInfo(req),
+          });
+        }
+      } catch (logError) {
+        console.error("Error logging failed login attempt:", logError);
+      }
+
       return {
         success: false,
         error: {
@@ -162,6 +182,21 @@ export const processUserLogin = async (
     const userResponse = authResult.user;
 
     const tokens = await generateAndStoreTokens(userResponse, req);
+
+    // Log successful login
+    try {
+      await addSecurityActivityService(userResponse.userID, {
+        type: "login",
+        description: "Successful login",
+        status: "success",
+        location: getClientIpAddress(req),
+        ipAddress: getClientIpAddress(req),
+        userAgent: req.headers["user-agent"] || "",
+        deviceInfo: parseDeviceInfo(req),
+      });
+    } catch (logError) {
+      console.error("Error logging successful login:", logError);
+    }
 
     return {
       success: true,

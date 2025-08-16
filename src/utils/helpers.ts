@@ -49,6 +49,43 @@ export const isValidEmail = (email: string): boolean => {
   return emailRegex.test(email);
 };
 
+export const getDeviceInfo = (req: any) => {
+  const userAgent = req.headers["user-agent"] || "";
+  const ipAddress = getClientIpAddress(req);
+  
+  // Parse user agent for device info
+  const isChrome = userAgent.includes("Chrome");
+  const isSafari = userAgent.includes("Safari") && !isChrome;
+  const isFirefox = userAgent.includes("Firefox");
+  const isEdge = userAgent.includes("Edge");
+  
+  const isWindows = userAgent.includes("Windows");
+  const isMac = userAgent.includes("Mac OS");
+  const isLinux = userAgent.includes("Linux");
+  const isAndroid = userAgent.includes("Android");
+  const isiOS = userAgent.includes("iPhone") || userAgent.includes("iPad");
+  
+  let browser = "Unknown";
+  if (isChrome) browser = "Chrome";
+  else if (isSafari) browser = "Safari";
+  else if (isFirefox) browser = "Firefox";
+  else if (isEdge) browser = "Edge";
+  
+  let os = "Unknown";
+  if (isWindows) os = "Windows";
+  else if (isMac) os = "Mac OS";
+  else if (isLinux) os = "Linux";
+  else if (isAndroid) os = "Android";
+  else if (isiOS) os = "iOS";
+  
+  return {
+    browser,
+    os,
+    userAgent,
+    ipAddress,
+  };
+};
+
 export const isValidPhone = (phone: string): boolean => {
   const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/;
   return phoneRegex.test(phone);
