@@ -7,14 +7,16 @@ import {
   IUserPreferences,
   IUserAdditionalInfo,
   IUserStatus,
+  IUserReferral,
 } from "../../models/Auth/user.model";
 import { hashPassword } from "../password";
-import { generateUserId, getClientIpAddress } from "../helpers";
+import { generateUserId, getClientIpAddress, generateReferralCode } from "../helpers";
 import {
   getUserByEmailService,
   getUserByPhoneService,
   createUserService,
 } from "../../services/Auth/user.service";
+import { processReferralSignupService } from "../../services/Auth/referral.service";
 
 export interface CreateUserData {
   userID: string;
@@ -26,6 +28,11 @@ export interface CreateUserData {
   preferences: IUserPreferences;
   additionalInfo: IUserAdditionalInfo;
   status: IUserStatus;
+  referral?: {
+    referredBy?: string;
+    joinedViaReferral?: boolean;
+    referralBonus?: number;
+  };
   lastLogin: Date;
   lastLogout: Date | null;
   lastProfileUpdate: Date;
@@ -44,7 +51,7 @@ export const prepareUserData = async (
 
   const UserID: string = generateUserId();
 
-  const userData: Partial<IUser> = {
+  const userData: any = {
     ...data,
     userID: UserID,
     fullname: data.fullname.trim(),
@@ -152,6 +159,44 @@ export const prepareUserData = async (
     lastPasswordChange: data.lastPasswordChange || new Date(),
   };
 
+  // Handle referral data if provided
+  if (data.referral) {
+    userData.referral = {
+      referralCode: generateReferralCode(),
+      referralId: generateUserId(),
+      referrals: [],
+      stats: {
+        totalReferrals: 0,
+        successfulReferrals: 0,
+        totalRewardsEarned: 0,
+        totalRewardsClaimed: 0,
+        pendingRewards: 0,
+        referralConversionRate: 0,
+      },
+      rewards: [],
+      settings: {
+        shareViaEmail: true,
+        shareViaSMS: true,
+        shareViaSocial: true,
+        notifyOnReferralJoin: true,
+        notifyOnRewardEarned: true,
+      },
+    };
+
+    // Add signup bonus if referred by someone
+    if (data.referral.referredBy && data.referral.referralBonus) {
+      userData.referral.rewards.push({
+        type: 'signup_bonus',
+        amount: data.referral.referralBonus,
+        description: `Signup bonus for joining via referral code: ${data.referral.referredBy}`,
+        earnedAt: new Date(),
+        claimed: false,
+      });
+      userData.referral.stats.totalRewardsEarned = data.referral.referralBonus;
+      userData.referral.stats.pendingRewards = data.referral.referralBonus;
+    }
+  }
+
   return userData;
 };
 
@@ -192,6 +237,16 @@ export const processUserCreation = async (
     const userData = await prepareUserData(data, req);
 
     const newUser = await createUserService(userData);
+
+    // Process referral if the user was referred by someone
+    if (data.referral?.referredBy) {
+      try {
+        await processReferralSignupService(newUser.userID, data.referral.referredBy);
+      } catch (referralError) {
+        console.error("Error processing referral signup:", referralError);
+        // Don't fail user creation if referral processing fails
+      }
+    }
 
     const responseData = {
       userID: newUser.userID,

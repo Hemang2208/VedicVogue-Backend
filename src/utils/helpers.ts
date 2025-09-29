@@ -50,6 +50,31 @@ export const generateMenuId = (): string => {
   return `MENU${YYYY}${MM}${DD}${HH}${mm}${ss}${randomNum}`;
 };
 
+export const generateReferralCode = (): string => {
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let code = '';
+  for (let i = 0; i < 8; i++) {
+    code += characters.charAt(Math.floor(Math.random() * characters.length));
+  }
+  return `VV${code}`;
+};
+
+export const generateReferralId = (): string => {
+  const now = new Date();
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  const YYYY = now.getFullYear();
+  const MM = pad(now.getMonth() + 1);
+  const DD = pad(now.getDate());
+  const HH = pad(now.getHours());
+  const mm = pad(now.getMinutes());
+  const ss = pad(now.getSeconds());
+  const randomNum = Math.floor(Math.random() * 100000) // 5-digit random number
+    .toString()
+    .padStart(6, "0"); // 6-digit random number
+
+  return `REF${YYYY}${MM}${DD}${HH}${mm}${ss}${randomNum}`;
+};
+
 export const sanitizeUserForResponse = (user: any) => {
   const userObj = user.toObject ? user.toObject() : user;
   

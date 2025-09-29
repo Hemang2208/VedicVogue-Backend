@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
-import { generateUserId } from "../../utils/helpers";
+import { generateUserId, generateReferralCode } from "../../utils/helpers";
+import { encrypt } from "../../configs/crypto";
 
 export interface IUserAccount {
   email: string;
@@ -102,6 +103,56 @@ export interface IUserPreferences {
   paymentMethod: string[];
 }
 
+export interface IUserReferral {
+  referralCode: string;
+  referralId: string;
+  referredBy?: {
+    userId: mongoose.Types.ObjectId;
+    referralCode: string;
+    joinedAt: Date;
+    rewardsClaimed: boolean;
+    rewardsClaimedAt?: Date;
+  };
+  referrals: Array<{
+    _id?: string;
+    userId: mongoose.Types.ObjectId;
+    referralCode: string;
+    joinedAt: Date;
+    status: 'pending' | 'verified' | 'completed';
+    rewardEarned: number;
+    rewardClaimed: boolean;
+    rewardClaimedAt?: Date;
+    orderCompleted: boolean;
+    firstOrderDate?: Date;
+  }>;
+  stats: {
+    totalReferrals: number;
+    successfulReferrals: number;
+    totalRewardsEarned: number;
+    totalRewardsClaimed: number;
+    pendingRewards: number;
+    referralConversionRate: number;
+  };
+  rewards: Array<{
+    _id?: string;
+    type: 'referral_bonus' | 'signup_bonus' | 'first_order_bonus';
+    amount: number;
+    description: string;
+    earnedAt: Date;
+    claimed: boolean;
+    claimedAt?: Date;
+    expiresAt?: Date;
+    metadata?: any;
+  }>;
+  settings: {
+    shareViaEmail: boolean;
+    shareViaSMS: boolean;
+    shareViaSocial: boolean;
+    notifyOnReferralJoin: boolean;
+    notifyOnRewardEarned: boolean;
+  };
+}
+
 export interface IUserStatus {
   ban: {
     isBanned: boolean;
@@ -166,6 +217,7 @@ export interface IUser extends mongoose.Document {
   addresses: IUserAddress[];
   activity: IUserActivity;
   preferences: IUserPreferences;
+  referral: IUserReferral;
   additionalInfo: IUserAdditionalInfo;
   status: IUserStatus;
   lastLogin: Date;
@@ -575,6 +627,199 @@ const UserSchema = new mongoose.Schema(
           required: false,
         },
       ],
+    },
+
+    // Referral System
+    referral: {
+      referralCode: {
+        type: String,
+        required: true,
+        unique: true,
+        sparse: true,
+        trim: true,
+        uppercase: true,
+        default: generateReferralCode,
+        index: true,
+      },
+      referralId: {
+        type: String,
+        required: true,
+        unique: true,
+        trim: true,
+        default: () => encrypt(new mongoose.Types.ObjectId().toString()),
+        index: true,
+      },
+      referredBy: {
+        userId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+          required: false,
+        },
+        referralCode: {
+          type: String,
+          required: false,
+          trim: true,
+          uppercase: true,
+        },
+        joinedAt: {
+          type: Date,
+          required: false,
+        },
+        rewardsClaimed: {
+          type: Boolean,
+          default: false,
+        },
+        rewardsClaimedAt: {
+          type: Date,
+          required: false,
+        },
+      },
+      referrals: [
+        {
+          userId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+            required: true,
+          },
+          referralCode: {
+            type: String,
+            required: true,
+            trim: true,
+            uppercase: true,
+          },
+          joinedAt: {
+            type: Date,
+            required: true,
+            default: Date.now,
+          },
+          status: {
+            type: String,
+            required: true,
+            enum: ['pending', 'verified', 'completed'],
+            default: 'pending',
+            index: true,
+          },
+          rewardEarned: {
+            type: Number,
+            default: 0,
+            min: 0,
+          },
+          rewardClaimed: {
+            type: Boolean,
+            default: false,
+          },
+          rewardClaimedAt: {
+            type: Date,
+            required: false,
+          },
+          orderCompleted: {
+            type: Boolean,
+            default: false,
+          },
+          firstOrderDate: {
+            type: Date,
+            required: false,
+          },
+        },
+      ],
+      stats: {
+        totalReferrals: {
+          type: Number,
+          default: 0,
+          min: 0,
+        },
+        successfulReferrals: {
+          type: Number,
+          default: 0,
+          min: 0,
+        },
+        totalRewardsEarned: {
+          type: Number,
+          default: 0,
+          min: 0,
+        },
+        totalRewardsClaimed: {
+          type: Number,
+          default: 0,
+          min: 0,
+        },
+        pendingRewards: {
+          type: Number,
+          default: 0,
+          min: 0,
+        },
+        referralConversionRate: {
+          type: Number,
+          default: 0,
+          min: 0,
+          max: 100,
+        },
+      },
+      rewards: [
+        {
+          type: {
+            type: String,
+            required: true,
+            enum: ['referral_bonus', 'signup_bonus', 'first_order_bonus'],
+            index: true,
+          },
+          amount: {
+            type: Number,
+            required: true,
+            min: 0,
+          },
+          description: {
+            type: String,
+            required: true,
+            trim: true,
+            maxlength: 200,
+          },
+          earnedAt: {
+            type: Date,
+            required: true,
+            default: Date.now,
+          },
+          claimed: {
+            type: Boolean,
+            default: false,
+            index: true,
+          },
+          claimedAt: {
+            type: Date,
+            required: false,
+          },
+          expiresAt: {
+            type: Date,
+            required: false,
+          },
+          metadata: {
+            type: mongoose.Schema.Types.Mixed,
+            default: {},
+          },
+        },
+      ],
+      settings: {
+        shareViaEmail: {
+          type: Boolean,
+          default: true,
+        },
+        shareViaSMS: {
+          type: Boolean,
+          default: true,
+        },
+        shareViaSocial: {
+          type: Boolean,
+          default: true,
+        },
+        notifyOnReferralJoin: {
+          type: Boolean,
+          default: true,
+        },
+        notifyOnRewardEarned: {
+          type: Boolean,
+          default: true,
+        },
+      },
     },
 
     additionalInfo: {

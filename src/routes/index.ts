@@ -6,6 +6,7 @@ import userRoutes from "./Auth/user.route";
 import recoveryRoutes from "./Auth/recovery.route";
 import forgotPasswordRoutes from "./Auth/forgotPassword.route";
 import securityRoutes from "./Auth/security.route";
+import referralRoutes from "./Auth/referral.route";
 import emailVerificationRoutes from "./EmailVerification/emailVerification.route";
 import menuRoutes from "./Menu/menu.route";
 
@@ -15,6 +16,7 @@ const router = Router();
 router.use("/applications", applicationRoutes);
 router.use("/users", userRoutes);
 router.use("/security", securityRoutes);
+router.use("/referrals", referralRoutes);
 router.use("/interns", internRoutes);
 router.use("/contacts", generalContactRoutes);
 router.use("/emails", nodemailerRoutes);
