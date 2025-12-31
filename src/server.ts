@@ -108,4 +108,15 @@ process.on("SIGINT", () => {
   });
 });
 
-start();
+// Connect to database for Vercel serverless
+connectDB().catch((error) => {
+  console.error("❌ Failed to connect to database:", error);
+});
+
+// Export the app for Vercel serverless
+export default app;
+
+// Start the server only in non-serverless environments
+if (process.env.VERCEL !== "1") {
+  start();
+}
