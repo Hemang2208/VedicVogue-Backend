@@ -27,7 +27,8 @@ app.use(
       if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
         callback(null, true);
       } else {
-        callback(new Error('Not allowed by CORS'));
+        // Reject the request but don't throw an error (return false instead)
+        callback(null, false);
       }
     },
     credentials: true,
