@@ -17,10 +17,10 @@ const start = async (): Promise<void> => {
       console.log(`🚀 Server is running on port http://localhost:${PORT}`);
       console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
 
-      // Start the self-ping CRON job only in production (Render)
+      // Start the self-ping CRON job only in production (Render or Vercel)
       if (
         process.env.NODE_ENV === "production" &&
-        process.env.RENDER_SERVICE_URL
+        (process.env.RENDER_SERVICE_URL || process.env.VERCEL_SERVICE_URL)
       ) {
         setupSelfPingCron();
       }
@@ -31,13 +31,16 @@ const start = async (): Promise<void> => {
   }
 };
 
-// Self-ping CRON job to keep the server alive on Render
+// Self-ping CRON job to keep the server alive on Render or Vercel
 const setupSelfPingCron = (): void => {
-  const renderUrl = process.env.RENDER_SERVICE_URL || process.env.BASE_URL;
+  const serviceUrl = 
+    process.env.VERCEL_SERVICE_URL || 
+    process.env.RENDER_SERVICE_URL || 
+    process.env.BASE_URL;
 
-  if (!renderUrl) {
+  if (!serviceUrl) {
     console.warn(
-      "⚠️  RENDER_SERVICE_URL or BASE_URL not found. Self-ping CRON job not started."
+      "⚠️  VERCEL_SERVICE_URL, RENDER_SERVICE_URL, or BASE_URL not found. Self-ping CRON job not started."
     );
     return;
   }
@@ -46,7 +49,7 @@ const setupSelfPingCron = (): void => {
   cron.schedule("*/5 * * * *", async () => {
     try {
       console.log("CRON is Working");
-      const healthUrl = `${renderUrl}/health`;
+      const healthUrl = `${serviceUrl}/health`;
 
       // Dynamic import for node-fetch (ES module)
       const { default: fetch } = await import("node-fetch");
@@ -86,7 +89,7 @@ const setupSelfPingCron = (): void => {
   });
 
   console.log(
-    `🔄 Self-ping CRON job started - pinging ${renderUrl}/health every 5 minutes`
+    `🔄 Self-ping CRON job started - pinging ${serviceUrl}/health every 5 minutes`
   );
 };
 

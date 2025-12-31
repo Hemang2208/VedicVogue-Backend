@@ -14,6 +14,8 @@ app.set("trust proxy", true);
 const allowedOrigins = [
   process.env.FRONTEND_URL,
   process.env.ADMIN_URL,
+  process.env.RENDER_SERVICE_URL,
+  process.env.VERCEL_SERVICE_URL,
 ].filter(Boolean);
 
 app.use(
